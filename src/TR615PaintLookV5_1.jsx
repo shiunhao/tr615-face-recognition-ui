@@ -359,10 +359,10 @@ const DEF = {
 /**
  * 數值滑動輸入組件 (Slider)
  */
-function Slider({ k, label, hint, min, max, val, onChange, neutral = 0, onStartDrag, onEndDrag, disabled = false }) {
+function Slider({ k, label, hint, min, max, val, onChange, neutral = 0, onStartDrag, onEndDrag, disabled = false, dense = false }) {
   return (
-    <div style={{ marginBottom: 14, opacity: disabled ? 0.4 : 1 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 5 }}>
+    <div style={{ marginBottom: dense ? 4 : 14, opacity: disabled ? 0.4 : 1 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: dense ? 2 : 5 }}>
         <span style={{ fontSize: 14, color: T.text }}>
           {label}
           {hint ? <span style={{ color: T.faint, fontSize: 14 }}> · {hint}</span> : null}
@@ -1179,6 +1179,46 @@ export default function App() {
   const [showScope, setShowScope] = useState(false);
   const [bypass, setBypass] = useState(false);
   const [colorBars, setColorBars] = useState(false); // Live 預覽切換為 SMPTE 彩條測試圖
+  // Network 頁面狀態
+  const [net, setNet] = useState({
+    dhcp: "on", hostname: "TR315-11c96d", ntp: "off",
+    ip: "192.168.1.168", netmask: "255.255.255.0", gateway: "192.168.1.254", dns: "8.8.8.8",
+    ntpServer: "pool.ntp.org",
+    rtmpUrl: "", rtmpKey: "", rtspSec: "off", rtspAudio: "off", hlsUrl: "",
+    srtIp: "", srtPort: "8889", srtEnc: "None", srtLatency: "1000", srtPass: "",
+    https: "off", sshd: "off", viscaMode: "Default", viscaPort: "52381",
+  });
+  const updNet = (k, v) => setNet((p) => ({ ...p, [k]: v }));
+  // Tracking Settings 頁面狀態
+  const [trk, setTrk] = useState({
+    tab: "presenter",
+    sensitivity: 2, returnTime: 3, presetPoint: "1",
+    peopleSize: "Upper Body", placement: "Center", height: "Height1",
+    effectiveArea: false, autoZoom: true, autoTilt: true, autoZoomPreset: "Preset 1",
+    multiPresenter: "off",
+  });
+  const updTrk = (k, v) => setTrk((p) => ({ ...p, [k]: v }));
+  // NDI 頁面狀態
+  const [ndi, setNdi] = useState({
+    mode: "builtin",
+    bandwidth: "ndihx3", streamOut: "1920x1080", framerate: "60", encoding: "h264",
+    deviceName: "AVer", deviceChannel: "TR315-11c96d", receiveGroup: "Public",
+    reliableUdp: false,
+    discoveryServer: false, discoveryAddr: "192.168.1.10",
+    multicastServer: false, multicastMask: "255.255.255.0", multicastAddr: "239.255.0.0", multicastTtl: "10",
+    ndiBridge: false, bridgeIp: "192.168.1.11", bridgeName: "NdiBridge", bridgePort: "5990", bridgeKey: "",
+  });
+  const updNdi = (k, v) => setNdi((p) => ({ ...p, [k]: v }));
+  // System 頁面狀態
+  const [sys, setSys] = useState({
+    loginName: "1", loginPwd: "password",
+    language: "English", syslog: "off", syslogIp: "", syslogPort: "",
+    statusOsd: "off", statusLiveView: "off",
+    powerUpPreset: false, powerUpVal: "0", powerOffPreset: false, powerOffVal: "0", powerOffComplete: "off",
+    sleepPreset: "Preset 20", sleepTimer: "10sec", sleepAutoTrack: true,
+    helpImprove: "Disable", ledBrightness: 10, cameraSelector: "1",
+  });
+  const updSys = (k, v) => setSys((p) => ({ ...p, [k]: v }));
   const [toast, setToast] = useState("");
   const [imgLoaded, setImgLoaded] = useState(false);
   const [deletingScene, setDeletingScene] = useState(null);
@@ -1908,8 +1948,8 @@ export default function App() {
           {/* [PM 定案] 固定色相環視覺(對齊 Multi-Matrix)。
               色相環以 height:100% + aspectRatio:1 撐滿垂直空間成正方形,row 底部 paddingBottom 預留間距;
               右側控制項對齊 Multi-Matrix 結構：有小標題、Default 按紐與大背景包覆。 */}
-          <div style={{ display: "flex", gap: 24, alignItems: "stretch", flex: 1, minHeight: 0, padding: "8px 0 16px", boxSizing: "border-box" }}>
-            <div style={{ flexShrink: 0, height: "100%", aspectRatio: "1", maxHeight: 360, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ display: "flex", gap: 24, alignItems: "stretch", flex: 1, minHeight: 0, padding: "8px 0 10px", boxSizing: "border-box" }}>
+            <div style={{ flexShrink: 0, height: "100%", aspectRatio: "1", maxHeight: 320, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <MatrixRing level={st.level} phase={st.phase} rg={st.rg} rb={st.rb} gr={st.gr} gb={st.gb} br={st.br} bg={st.bg} />
             </div>
             
@@ -1924,19 +1964,20 @@ export default function App() {
               <div style={{
                 flex: 1,
                 minHeight: 0,
+                width: "100%",
                 background: "rgba(255, 255, 255, 0.03)",
                 border: "1px solid rgba(255, 255, 255, 0.10)",
                 borderRadius: 8,
-                padding: "12px 18px",
+                padding: "16px 18px",
                 boxSizing: "border-box",
                 display: "grid",
                 gridTemplateColumns: "1fr 1fr",
                 columnGap: 24,
-                rowGap: 8,
-                alignContent: "center"
+                rowGap: 4,
+                alignContent: "space-between"
               }}>
                 {MATRIX_KEYS.map(([k, lb, hint]) => (
-                  <Slider key={k} k={k} label={lb} hint={hint} min={-99} max={99} val={st[k]} onChange={(v) => upd(k, v)} onStartDrag={startDrag} onEndDrag={endDrag} />
+                  <Slider key={k} k={k} label={lb} hint={hint} min={-99} max={99} val={st[k]} onChange={(v) => upd(k, v)} onStartDrag={startDrag} onEndDrag={endDrag} dense />
                 ))}
               </div>
             </div>
@@ -3103,10 +3144,10 @@ export default function App() {
           ["Camera Settings", "camera", true], 
           ["Paint / Look", "paint", true], 
           ["Video & Audio", "video", true], 
-          ["Network", "network", false], 
-          ["Tracking Settings", "tracking", false], 
-          ["NDI", "ndi", false], 
-          ["System", "system", false], 
+          ["Network", "network", true], 
+          ["Tracking Settings", "tracking", true], 
+          ["NDI", "ndi", true], 
+          ["System", "system", true], 
           ["Audio Integrated", "audio_int", false]
         ].map(([lb, id, implement]) => {
           const active = activeMenu === id;
@@ -3128,7 +3169,7 @@ export default function App() {
             </div>
           );
         })}
-        {(activeMenu === "camera" || activeMenu === "live") && (
+        {(activeMenu === "camera" || activeMenu === "live" || activeMenu === "network" || activeMenu === "tracking" || activeMenu === "ndi" || activeMenu === "system") && (
           <div className="aver-fade" style={{ margin: "8px 0 0", padding: "12px 18px 16px", borderTop: `1px solid ${T.line}`, display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ fontSize: 12, letterSpacing: 1, color: T.faint, fontWeight: 600, textTransform: "uppercase" }}>Tracking Control</div>
             <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
@@ -3403,7 +3444,7 @@ export default function App() {
                 flexDirection: "column", 
                 alignSelf: "stretch" 
               }}>
-                <div key={block} className="aver-block-entrance" style={{ flex: 1, overflow: (block === "multi" && (multiStyle === "wheel" || multiStyle === "wheel2")) ? "visible" : "auto", minHeight: 0, paddingRight: 4, scrollbarGutter: "stable", display: "flex", flexDirection: "column" }}>
+                <div key={block} className="aver-block-entrance" style={{ flex: 1, overflow: (block === "multi" && (multiStyle === "wheel" || multiStyle === "wheel2")) ? "visible" : block === "matrix" ? "hidden" : "auto", minHeight: 0, paddingRight: 4, scrollbarGutter: "stable", display: "flex", flexDirection: "column" }}>
                   {renderBlock()}
                 </div>
               </div>
@@ -3625,9 +3666,9 @@ export default function App() {
 
                     {cam.tab === "exp" ? (
                       /* ===== Exposure 分頁 ===== */
-                      <div style={{ display: "flex", gap: 0, padding: "10px 0", alignItems: "flex-start", flex: 1, minHeight: 0, overflow: "hidden", boxSizing: "border-box" }}>
+                      <div style={{ display: "flex", gap: 0, padding: "10px 16px", alignItems: "flex-start", flex: 1, minHeight: 0, overflow: "hidden", boxSizing: "border-box" }}>
                         {/* 模式清單 */}
-                        <div style={{ flex: "0 0 140px", display: "flex", flexDirection: "column", gap: 4, padding: "0 12px 0 0", borderRight: `1px solid ${T.line}`, alignSelf: "stretch" }}>
+                        <div style={{ flex: "0 0 140px", display: "flex", flexDirection: "column", gap: 4, padding: "0 14px 0 0", borderRight: `1px solid ${T.line}`, alignSelf: "stretch" }}>
                           {EXP_MODES.map(([id, lb]) => (
                             <button id={`aver-cam-btn-expmode-${id}`} key={id} onClick={() => updCam("expMode", id)}
                               style={{
@@ -3709,7 +3750,7 @@ export default function App() {
                       </div>
                     ) : (
                       /* ===== Image Process 分頁(對照實機) ===== */
-                      <div style={{ display: "flex", gap: 0, padding: "10px 0", alignItems: "flex-start", flex: 1, minHeight: 0, overflow: "hidden", boxSizing: "border-box" }}>
+                      <div style={{ display: "flex", gap: 0, padding: "10px 16px", alignItems: "flex-start", flex: 1, minHeight: 0, overflow: "hidden", boxSizing: "border-box" }}>
                         {/* 第 1 欄:White Balance + R/B Gain + One Push */}
                         <div style={{ flex: 1, minWidth: 0, padding: "0 14px 0 10px", borderRight: `1px solid ${T.line}`, display: "flex", flexDirection: "column", gap: 8 }}>
                           <div style={{
@@ -3845,6 +3886,624 @@ export default function App() {
               );
             })()}
           </div>
+        ) : activeMenu === "network" ? (
+          (() => {
+            const card = { border: `1.5px solid ${T.line}`, borderRadius: 4, background: "#08090a", display: "flex", flexDirection: "column", boxSizing: "border-box" };
+            const head = { background: "#22252a", padding: "4px 12px", fontSize: 14, fontWeight: 600, color: T.dim, borderBottom: `1.5px solid ${T.line}` };
+            const body = { padding: "14px 14px 16px", display: "flex", flexDirection: "column", gap: 12 };
+            const lab = { fontSize: 12.5, color: T.dim, marginBottom: 5, fontWeight: 600 };
+            const inp = (val, on, dis) => ({ width: "100%", boxSizing: "border-box", background: dis ? "#0a0b0c" : "#101216", border: `1px solid ${T.line2}`, borderRadius: 4, color: dis ? T.faint : T.text, fontSize: 13.5, padding: "8px 10px", fontFamily: fUI, outline: "none" });
+            const Inp = ({ k, disabled }) => (<input value={net[k]} disabled={disabled} onChange={(e) => updNet(k, e.target.value)} style={inp(net[k], null, disabled)} />);
+            const Radio2 = ({ k, opts = ["on", "off"], labels = ["On", "Off"] }) => (
+              <div style={{ display: "flex", gap: 28, padding: "4px 0" }}>
+                {opts.map((o, i) => (
+                  <div key={o} onClick={() => updNet(k, o)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                    <span style={{ width: 16, height: 16, borderRadius: "50%", border: `1.5px solid ${net[k] === o ? T.blue : T.line2}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {net[k] === o && <span style={{ width: 8, height: 8, borderRadius: "50%", background: T.blue }} />}
+                    </span>
+                    <span style={{ fontSize: 12.5, color: net[k] === o ? T.text : T.dim }}>{labels[i]}</span>
+                  </div>
+                ))}
+              </div>
+            );
+            const Btn = ({ children, primary, disabled }) => (
+              <button disabled={disabled} style={{ padding: "8px 18px", fontSize: 13.5, fontWeight: 600, cursor: disabled ? "not-allowed" : "pointer", borderRadius: 4, border: `1px solid ${T.line2}`, background: disabled ? "#0d0f11" : "#1a1d21", color: disabled ? T.faint : T.text, fontFamily: fUI }}>{children}</button>
+            );
+            const sel = { width: "100%", boxSizing: "border-box", background: "#101216", border: `1px solid ${T.line2}`, borderRadius: 4, color: T.text, fontSize: 13.5, padding: "8px 10px", fontFamily: fUI };
+            const dhcpOn = net.dhcp === "on";
+            return (
+              <div id="aver-network-wrapper" key="network" className="aver-fade" style={{ width: "100%", maxWidth: "1350px", margin: "0 auto", height: "100%", overflowY: "auto", paddingRight: 8, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 14 }}>
+                {/* Row 1: DHCP / Hostname / NTP */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+                  <div style={card}>
+                    <div style={head}>DHCP</div>
+                    <div style={body}>
+                      <Radio2 k="dhcp" />
+                      <div><div style={lab}>IP Address</div><Inp k="ip" disabled={dhcpOn} /></div>
+                      <div><div style={lab}>Gateway</div><Inp k="gateway" disabled={dhcpOn} /></div>
+                    </div>
+                  </div>
+                  <div style={card}>
+                    <div style={head}>Hostname</div>
+                    <div style={body}>
+                      <div><Inp k="hostname" /></div>
+                      <div><div style={lab}>Netmask</div><Inp k="netmask" disabled={dhcpOn} /></div>
+                      <div><div style={lab}>DNS</div><Inp k="dns" disabled={dhcpOn} /></div>
+                    </div>
+                  </div>
+                  <div style={card}>
+                    <div style={head}>NTP</div>
+                    <div style={body}>
+                      <Radio2 k="ntp" />
+                      <div><div style={lab}>NTP Server</div><Inp k="ntpServer" /></div>
+                      <div style={{ marginTop: 4 }}><Btn>Confirm</Btn></div>
+                    </div>
+                  </div>
+                </div>
+                {/* Row 2: RTMP / RTSP / HLS */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+                  <div style={card}>
+                    <div style={head}>RTMP Settings</div>
+                    <div style={body}>
+                      <div><div style={lab}>Server URL</div><Inp k="rtmpUrl" /></div>
+                      <div><div style={lab}>Stream Key</div><Inp k="rtmpKey" /></div>
+                      <div style={{ display: "flex", gap: 10 }}><Btn>Start Stream</Btn><Btn disabled>STOP</Btn></div>
+                    </div>
+                  </div>
+                  <div style={card}>
+                    <div style={head}>RTSP Security</div>
+                    <div style={body}>
+                      <Radio2 k="rtspSec" />
+                      <div style={lab}>RTSP Audio Enable</div>
+                      <Radio2 k="rtspAudio" />
+                    </div>
+                  </div>
+                  <div style={card}>
+                    <div style={head}>HLS Settings</div>
+                    <div style={body}>
+                      <div><div style={lab}>Stream URL</div><Inp k="hlsUrl" /></div>
+                      <div style={{ display: "flex", gap: 10, marginTop: 4 }}><Btn>Start Stream</Btn><Btn disabled>STOP</Btn></div>
+                    </div>
+                  </div>
+                </div>
+                {/* Row 3: SRT */}
+                <div style={card}>
+                  <div style={head}>SRT Settings</div>
+                  <div style={{ ...body, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+                    <div><div style={lab}>Destination IP</div><Inp k="srtIp" /></div>
+                    <div><div style={lab}>Port</div><Inp k="srtPort" /></div>
+                    <div><div style={lab}>Encryption</div>
+                      <select value={net.srtEnc} onChange={(e) => updNet("srtEnc", e.target.value)} style={sel}>
+                        <option>None</option><option>AES-128</option><option>AES-192</option><option>AES-256</option>
+                      </select>
+                    </div>
+                    <div><div style={lab}>Latency (ms)</div><Inp k="srtLatency" /></div>
+                    <div><div style={lab}>Passphrase</div><Inp k="srtPass" /></div>
+                    <div style={{ display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+                      <div style={{ fontSize: 12.5, color: T.dim, marginBottom: 8 }}>Connect Status: <span style={{ color: T.faint }}>Disconnected</span></div>
+                      <div style={{ display: "flex", gap: 10 }}><Btn>Start Stream</Btn><Btn disabled>STOP</Btn></div>
+                    </div>
+                  </div>
+                </div>
+                {/* Row 4: HTTPS / Upload Cert / SSHD */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+                  <div style={card}>
+                    <div style={head}>HTTPS</div>
+                    <div style={body}><Radio2 k="https" opts={["only", "on", "off"]} labels={["Only", "On", "Off"]} /></div>
+                  </div>
+                  <div style={card}>
+                    <div style={head}>Upload Certificate　<span style={{ fontWeight: 400, color: T.faint }}>Cert Status: None</span></div>
+                    <div style={{ ...body, flexDirection: "row", alignItems: "center", gap: 12 }}>
+                      <Btn>選擇檔案</Btn><span style={{ fontSize: 12.5, color: T.faint }}>未選擇任何檔案</span><Btn disabled>Upload</Btn>
+                    </div>
+                  </div>
+                  <div style={card}>
+                    <div style={head}>SSHD</div>
+                    <div style={body}><Radio2 k="sshd" /></div>
+                  </div>
+                </div>
+                {/* Row 5: Visca */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+                  <div style={card}>
+                    <div style={head}>Visca Port Mode</div>
+                    <div style={body}>
+                      <select value={net.viscaMode} onChange={(e) => updNet("viscaMode", e.target.value)} style={sel}>
+                        <option>Default</option><option>TCP</option><option>UDP</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div style={card}>
+                    <div style={head}>Visca Port Number</div>
+                    <div style={{ ...body, flexDirection: "row", alignItems: "center", gap: 12 }}>
+                      <span style={{ fontSize: 12.5, color: T.dim }}>Port</span>
+                      <input value={net.viscaPort} disabled style={{ ...inp(net.viscaPort, null, true), width: 120 }} />
+                      <Btn disabled>Save</Btn>
+                    </div>
+                  </div>
+                  <div />
+                </div>
+                {/* 802.1X 等其餘區塊（截圖未完整顯示）暫留空白 */}
+                <div style={{ ...card, minHeight: 80 }}>
+                  <div style={head}>802.1X Enable</div>
+                  <div style={{ ...body, color: T.faint, fontSize: 12.5 }}>（內容待補）</div>
+                </div>
+              </div>
+            );
+          })()
+        ) : activeMenu === "system" ? (
+          (() => {
+            const card = { border: `1.5px solid ${T.line}`, borderRadius: 4, background: "#08090a", display: "inline-flex", flexDirection: "column", boxSizing: "border-box", alignSelf: "flex-start" };
+            const head = { background: "#22252a", padding: "4px 12px", fontSize: 14, fontWeight: 600, color: T.dim, borderBottom: `1.5px solid ${T.line}`, whiteSpace: "nowrap" };
+            const body = { padding: "12px 14px", display: "flex", flexDirection: "column", gap: 10 };
+            const inpStyle = { boxSizing: "border-box", background: "#101216", border: `1px solid ${T.line2}`, borderRadius: 4, color: T.text, fontSize: 13.5, padding: "8px 10px", fontFamily: fUI, outline: "none", minWidth: 220 };
+            const Inp = ({ k, type, w = 220 }) => (<input type={type || "text"} value={sys[k]} onChange={(e) => updSys(k, e.target.value)} style={{ ...inpStyle, minWidth: w }} />);
+            const lab = { fontSize: 12.5, color: T.dim, marginBottom: 5, fontWeight: 600 };
+            const Btn = ({ children }) => (<button style={{ padding: "8px 18px", fontSize: 13.5, fontWeight: 600, cursor: "pointer", borderRadius: 4, border: `1px solid ${T.line2}`, background: "#1a1d21", color: T.text, fontFamily: fUI, whiteSpace: "nowrap" }}>{children}</button>);
+            const sel = { ...inpStyle, minWidth: 200 };
+            const Radio2 = ({ k }) => (
+              <div style={{ display: "flex", gap: 28, padding: "2px 0" }}>
+                {[["on", "On"], ["off", "Off"]].map(([o, l]) => (
+                  <div key={o} onClick={() => updSys(k, o)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                    <span style={{ width: 16, height: 16, borderRadius: "50%", border: `1.5px solid ${sys[k] === o ? T.blue : T.line2}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {sys[k] === o && <span style={{ width: 8, height: 8, borderRadius: "50%", background: T.blue }} />}
+                    </span>
+                    <span style={{ fontSize: 12.5, color: sys[k] === o ? T.text : T.dim }}>{l}</span>
+                  </div>
+                ))}
+              </div>
+            );
+            const Check = ({ k, label, extra }) => (
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 10, alignSelf: "flex-start", background: "#08090a", border: `1.5px solid ${T.line}`, borderRadius: 4, padding: "10px 14px" }}>
+                <div onClick={() => updSys(k, !sys[k])} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                  <span style={{ width: 16, height: 16, borderRadius: 3, border: `1.5px solid ${sys[k] ? T.blue : T.line2}`, background: sys[k] ? T.blue : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#fff" }}>{sys[k] && "✓"}</span>
+                  <span style={{ fontSize: 13.5, color: T.text, whiteSpace: "nowrap" }}>{label}</span>
+                </div>
+                {extra}
+              </div>
+            );
+            const bigRow = { width: "100%", boxSizing: "border-box", display: "flex", flexWrap: "wrap", gap: 14, alignItems: "flex-start", padding: "14px 0", borderBottom: `1px solid ${T.line}` };
+            const INFO = [["Model Name", "TR315"], ["IP Address", "10.100.10.90"], ["Serial Number", "5313892200034"], ["MAC Address", "00:18:1A:11:C9:6D"], ["Firmware Version", "0.1.0001.18"], ["Lens Firmware Version", "A027"], ["MCU Firmware Version", "BB354DE9"]];
+            return (
+              <div id="aver-system-wrapper" key="system" className="aver-fade" style={{ width: "100%", maxWidth: "1350px", margin: "0 auto", height: "100%", overflowY: "auto", paddingRight: 8, boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
+                {/* Row 1: Upgrade Firmware / Factory Default + 設備資訊 */}
+                <div style={bigRow}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                    <div style={card}>
+                      <div style={head}>Upgrade Firmware</div>
+                      <div style={{ ...body, flexDirection: "row", alignItems: "center", gap: 12 }}>
+                        <Btn>選擇檔案</Btn><span style={{ fontSize: 12.5, color: T.faint }}>未選擇任何檔案</span><Btn>Upgrade</Btn>
+                      </div>
+                    </div>
+                    <div style={card}>
+                      <div style={head}>Factory Default</div>
+                      <div style={{ ...body }}><Btn>Reset to Factory Default</Btn></div>
+                    </div>
+                  </div>
+                  <div style={{ ...card, padding: "14px 18px", display: "flex" }}>
+                    {INFO.map(([k, v]) => (
+                      <div key={k} style={{ display: "flex", gap: 16, fontSize: 13, padding: "3px 0" }}>
+                        <span style={{ color: T.dim, width: 170 }}>{k}</span>
+                        <span style={{ color: T.text, fontFamily: fMono }}>{v}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Row 2: Login / Language / Syslog */}
+                <div style={bigRow}>
+                  <div style={card}>
+                    <div style={head}>Login</div>
+                    <div style={body}>
+                      <div><div style={lab}>Login Name</div><Inp k="loginName" /></div>
+                      <div><div style={lab}>Login Password</div><Inp k="loginPwd" type="password" /></div>
+                      <div style={{ display: "flex", gap: 10, marginTop: 2 }}><Btn>Change</Btn><Btn>Cancel</Btn></div>
+                    </div>
+                  </div>
+                  <div style={card}>
+                    <div style={head}>Language</div>
+                    <div style={body}>
+                      <select value={sys.language} onChange={(e) => updSys("language", e.target.value)} style={sel}>
+                        <option>English</option><option>繁體中文</option><option>简体中文</option><option>日本語</option>
+                      </select>
+                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 2 }}><Btn>Reboot</Btn><Btn>Set Date/Time</Btn></div>
+                      <div style={{ display: "flex" }}><Btn>Power Schedule</Btn></div>
+                    </div>
+                  </div>
+                  <div style={card}>
+                    <div style={head}>Syslog</div>
+                    <div style={body}>
+                      <div><div style={lab}>IP Address</div><Inp k="syslogIp" /></div>
+                      <div><div style={lab}>Port</div><Inp k="syslogPort" /></div>
+                      <Radio2 k="syslog" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Row 3: Status OSD / Setting / Status Live View + Export Log */}
+                <div style={bigRow}>
+                  <div style={card}>
+                    <div style={head}>Status OSD</div>
+                    <div style={body}><Radio2 k="statusOsd" /></div>
+                  </div>
+                  <div style={card}>
+                    <div style={head}>Setting</div>
+                    <div style={{ ...body, flexDirection: "row", gap: 10 }}><Btn>Import Setting</Btn><Btn>Export Setting</Btn></div>
+                  </div>
+                  <div style={card}>
+                    <div style={head}>Status Live View</div>
+                    <div style={body}><Radio2 k="statusLiveView" /></div>
+                  </div>
+                  <div style={{ alignSelf: "center" }}><Btn>Export Log</Btn></div>
+                </div>
+
+                {/* Row 4: Power Up/Off to Preset / Power Off Completely */}
+                <div style={bigRow}>
+                  <div style={card}>
+                    <div style={head}><Check k="powerUpPreset" label="Power Up to Preset" /></div>
+                    <div style={{ ...body, flexDirection: "row", gap: 10, alignItems: "center" }}><Inp k="powerUpVal" w={180} /><Btn>Save</Btn></div>
+                  </div>
+                  <div style={card}>
+                    <div style={head}><Check k="powerOffPreset" label="Power Off to Preset" /></div>
+                    <div style={{ ...body, flexDirection: "row", gap: 10, alignItems: "center" }}><Inp k="powerOffVal" w={180} /><Btn>Save</Btn></div>
+                  </div>
+                  <div style={card}>
+                    <div style={head}>Power Off Completely</div>
+                    <div style={body}><Radio2 k="powerOffComplete" /></div>
+                  </div>
+                </div>
+
+                {/* Row 5: VISCA Customized Function */}
+                <div style={bigRow}>
+                  <Btn>VISCA Customized Function</Btn>
+                </div>
+
+                {/* Row 6: Sleep to Preset / Sleep Timer */}
+                <div style={bigRow}>
+                  <div style={card}>
+                    <div style={head}>Sleep to Preset</div>
+                    <div style={{ ...body, maxWidth: 300 }}>
+                      <select value={sys.sleepPreset} onChange={(e) => updSys("sleepPreset", e.target.value)} style={sel}>
+                        <option>Preset 20</option><option>Preset 1</option><option>Preset 2</option>
+                      </select>
+                      <div style={{ fontSize: 11.5, color: T.faint, lineHeight: 1.55 }}>Sleep presets can be enabled in the Zoom/Teams video theme, and presets can be set for sleep positions.</div>
+                    </div>
+                  </div>
+                  <div style={card}>
+                    <div style={head}>Sleep Timer</div>
+                    <div style={{ ...body, maxWidth: 300 }}>
+                      <div style={{ display: "flex", gap: 22 }}>
+                        {[["10sec", "10 sec"], ["5min", "5 min"], ["10min", "10 min"]].map(([o, l]) => (
+                          <div key={o} onClick={() => updSys("sleepTimer", o)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                            <span style={{ width: 16, height: 16, borderRadius: "50%", border: `1.5px solid ${sys.sleepTimer === o ? T.blue : T.line2}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              {sys.sleepTimer === o && <span style={{ width: 8, height: 8, borderRadius: "50%", background: T.blue }} />}
+                            </span>
+                            <span style={{ fontSize: 12.5, color: sys.sleepTimer === o ? T.text : T.dim }}>{l}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div onClick={() => updSys("sleepAutoTrack", !sys.sleepAutoTrack)} style={{ display: "flex", gap: 8, cursor: "pointer", alignItems: "flex-start" }}>
+                        <span style={{ width: 16, height: 16, flexShrink: 0, borderRadius: 3, border: `1.5px solid ${sys.sleepAutoTrack ? T.blue : T.line2}`, background: sys.sleepAutoTrack ? T.blue : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#fff", marginTop: 1 }}>{sys.sleepAutoTrack && "✓"}</span>
+                        <span style={{ fontSize: 11.5, color: T.dim, lineHeight: 1.5 }}>Turn on Auto Tracking or SmartFrame (depending on model) when exiting Sleep Mode.</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Row 7: Help Improving / LED Brightness / Camera Selector */}
+                <div style={{ ...bigRow, borderBottom: "none" }}>
+                  <div style={card}>
+                    <div style={head}>Help Improving AVer Camera</div>
+                    <div style={{ ...body, maxWidth: 300 }}>
+                      <select value={sys.helpImprove} onChange={(e) => updSys("helpImprove", e.target.value)} style={sel}>
+                        <option>Disable</option><option>Enable</option>
+                      </select>
+                      <div style={{ fontSize: 11.5, color: T.faint, lineHeight: 1.55 }}>Allow providing of anonymous usage data.</div>
+                    </div>
+                  </div>
+                  <div style={card}>
+                    <div style={head}>LED Indicator Brightness</div>
+                    <div style={{ ...body, minWidth: 240 }}>
+                      <div style={{ display: "flex", justifyContent: "flex-end", fontFamily: fMono, fontSize: 13, color: T.blue }}>{sys.ledBrightness}</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 11, color: T.faint }}>0</span>
+                        <input type="range" min={0} max={10} value={sys.ledBrightness} onChange={(e) => updSys("ledBrightness", parseInt(e.target.value))} className="tr-sl" style={{ "--p": (sys.ledBrightness / 10) * 100 + "%", flex: 1 }} />
+                        <span style={{ fontSize: 11, color: T.faint }}>10</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div style={card}>
+                    <div style={head}>Camera Selector</div>
+                    <div style={body}>
+                      <select value={sys.cameraSelector} onChange={(e) => updSys("cameraSelector", e.target.value)} style={sel}>
+                        <option>1</option><option>2</option><option>3</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()
+        ) : activeMenu === "ndi" ? (
+          (() => {
+            // 卡片(hug contents):深色橫條 header + 黑底框
+            const card = { border: `1.5px solid ${T.line}`, borderRadius: 4, background: "#08090a", display: "inline-flex", flexDirection: "column", boxSizing: "border-box", alignSelf: "flex-start" };
+            const head = { background: "#22252a", padding: "4px 12px", fontSize: 14, fontWeight: 600, color: T.dim, borderBottom: `1.5px solid ${T.line}`, whiteSpace: "nowrap" };
+            const body = { padding: "12px 14px", display: "flex", flexDirection: "column", gap: 10 };
+            const inpStyle = { boxSizing: "border-box", background: "#101216", border: `1px solid ${T.line2}`, borderRadius: 4, color: T.text, fontSize: 13.5, padding: "8px 10px", fontFamily: fUI, outline: "none", minWidth: 240 };
+            const sel = { ...inpStyle, minWidth: 240 };
+            const Inp = ({ k, w = 240 }) => (<input value={ndi[k]} onChange={(e) => updNdi(k, e.target.value)} style={{ ...inpStyle, minWidth: w }} />);
+            const Radio = ({ k, val, label }) => (
+              <div onClick={() => updNdi(k, val)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                <span style={{ width: 16, height: 16, borderRadius: "50%", border: `1.5px solid ${ndi[k] === val ? T.blue : T.line2}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {ndi[k] === val && <span style={{ width: 8, height: 8, borderRadius: "50%", background: T.blue }} />}
+                </span>
+                <span style={{ fontSize: 12.5, color: ndi[k] === val ? T.text : T.dim }}>{label}</span>
+              </div>
+            );
+            const Check = ({ k, label, extra }) => (
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 12, alignSelf: "flex-start", background: "#08090a", border: `1.5px solid ${T.line}`, borderRadius: 4, padding: "10px 14px", boxSizing: "border-box" }}>
+                <div onClick={() => updNdi(k, !ndi[k])} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                  <span style={{ width: 16, height: 16, borderRadius: 3, border: `1.5px solid ${ndi[k] ? T.blue : T.line2}`, background: ndi[k] ? T.blue : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#fff" }}>{ndi[k] && "✓"}</span>
+                  <span style={{ fontSize: 13.5, color: T.text, whiteSpace: "nowrap" }}>{label}</span>
+                </div>
+                {extra}
+              </div>
+            );
+            const Btn = ({ children }) => (<button style={{ padding: "8px 22px", fontSize: 13.5, fontWeight: 600, cursor: "pointer", borderRadius: 4, border: `1px solid ${T.line2}`, background: "#1a1d21", color: T.text, fontFamily: fUI }}>{children}</button>);
+            // 大區塊外框(fill 左右寬度)
+            const bigRow = { width: "100%", boxSizing: "border-box", display: "flex", flexWrap: "wrap", gap: 14, alignItems: "flex-start", padding: "14px 0", borderBottom: `1px solid ${T.line}` };
+            const fieldLab = { fontSize: 12.5, color: T.dim, marginBottom: 5, fontWeight: 600 };
+            return (
+              <div id="aver-ndi-wrapper" key="ndi" className="aver-fade" style={{ width: "100%", maxWidth: "1350px", margin: "0 auto", height: "100%", overflowY: "auto", paddingRight: 8, boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
+                {/* 頂部:Built-in NDI */}
+                <div style={{ ...bigRow }}>
+                  <button style={{ padding: "10px 28px", fontSize: 13.5, fontWeight: 600, cursor: "pointer", borderRadius: 4, border: `1px solid ${T.line2}`, background: ndi.mode === "builtin" ? "#1a1d21" : "transparent", color: T.text, fontFamily: fUI }}>Built-in NDI</button>
+                </div>
+
+                {/* Video Bandwidth / Stream Video Output / Framerate / Encoding Type */}
+                <div style={bigRow}>
+                  <div style={card}>
+                    <div style={head}>Video Bandwidth</div>
+                    <div style={{ ...body, flexDirection: "row", gap: 24, padding: "12px 16px" }}>
+                      <Radio k="bandwidth" val="low" label="Low" />
+                      <Radio k="bandwidth" val="medium" label="Medium" />
+                      <Radio k="bandwidth" val="high" label="High" />
+                      <Radio k="bandwidth" val="ndihx3" label="NDI HX3" />
+                    </div>
+                  </div>
+                  <div style={card}>
+                    <div style={head}>Stream Video Output</div>
+                    <div style={body}>
+                      <select value={ndi.streamOut} onChange={(e) => updNdi("streamOut", e.target.value)} style={sel}>
+                        <option>1920x1080</option><option>1280x720</option><option>3840x2160</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div style={card}>
+                    <div style={head}>Framerate</div>
+                    <div style={body}>
+                      <select value={ndi.framerate} onChange={(e) => updNdi("framerate", e.target.value)} style={{ ...sel, minWidth: 200 }}>
+                        <option>60</option><option>50</option><option>30</option><option>25</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div style={card}>
+                    <div style={head}>Encoding Type</div>
+                    <div style={{ ...body, flexDirection: "row", gap: 32, padding: "12px 20px" }}>
+                      <Radio k="encoding" val="h264" label="H.264" />
+                      <Radio k="encoding" val="h265" label="H.265" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Local Device Name / Device Channel */}
+                <div style={bigRow}>
+                  <div style={card}>
+                    <div style={head}>Local Device Name</div>
+                    <div style={body}><Inp k="deviceName" /></div>
+                  </div>
+                  <div style={card}>
+                    <div style={head}>Device Channel (Camera ID)</div>
+                    <div style={body}><Inp k="deviceChannel" /></div>
+                  </div>
+                </div>
+
+                {/* Receive Group */}
+                <div style={bigRow}>
+                  <div style={card}>
+                    <div style={head}>Receive Group</div>
+                    <div style={body}><Inp k="receiveGroup" /></div>
+                  </div>
+                </div>
+
+                {/* Reliable UDP */}
+                <div style={bigRow}>
+                  <Check k="reliableUdp" label="Reliable UDP" />
+                </div>
+
+                {/* Discovery Server */}
+                <div style={bigRow}>
+                  <Check k="discoveryServer" label="Discovery Server" />
+                  <div style={card}>
+                    <div style={head}>Discovery Server Address</div>
+                    <div style={body}><Inp k="discoveryAddr" /></div>
+                  </div>
+                </div>
+
+                {/* Multicast Server + Mask */}
+                <div style={bigRow}>
+                  <Check k="multicastServer" label="Multicast Server" />
+                  <div style={card}>
+                    <div style={head}>Multicast Server Mask</div>
+                    <div style={body}><Inp k="multicastMask" /></div>
+                  </div>
+                </div>
+
+                {/* Multicast Address / TTL / Confirm-Cancel */}
+                <div style={bigRow}>
+                  <div style={card}>
+                    <div style={head}>Multicast Server Address</div>
+                    <div style={body}><Inp k="multicastAddr" /></div>
+                  </div>
+                  <div style={card}>
+                    <div style={head}>Multicast TTL</div>
+                    <div style={body}><Inp k="multicastTtl" w={160} /></div>
+                  </div>
+                  <div style={{ display: "flex", gap: 12, alignSelf: "flex-end", paddingBottom: 2 }}>
+                    <Btn>Confirm</Btn><Btn>Cancel</Btn>
+                  </div>
+                </div>
+
+                {/* NDI Bridge */}
+                <div style={{ ...bigRow, borderBottom: "none" }}>
+                  <Check k="ndiBridge" label="NDI Bridge" extra={<span style={{ width: 12, height: 12, borderRadius: "50%", background: "#e0322f", display: "inline-block" }} />} />
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 14, flex: 1, minWidth: 0 }}>
+                    <div style={card}>
+                      <div style={head}>NDI Bridge IP Address</div>
+                      <div style={body}><Inp k="bridgeIp" /></div>
+                    </div>
+                    <div style={card}>
+                      <div style={head}>NDI Bridge Name</div>
+                      <div style={body}><Inp k="bridgeName" /></div>
+                    </div>
+                    <div style={card}>
+                      <div style={head}>NDI Bridge Port</div>
+                      <div style={body}><Inp k="bridgePort" w={180} /></div>
+                    </div>
+                    <div style={card}>
+                      <div style={head}>NDI Bridge Encryption Key</div>
+                      <div style={body}><Inp k="bridgeKey" /></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()
+        ) : activeMenu === "tracking" ? (
+          (() => {
+            const TRK_TABS = [["presenter", "Presenter"], ["zone", "Zone"], ["hybrid", "Hybrid"], ["framing", "Framing"], ["gesture", "Gesture"], ["face", "Face"]];
+            const sec = { border: `1px solid ${T.line}`, borderRadius: 6, padding: "12px 14px", background: "rgba(0,0,0,0.12)", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 10 };
+            const secTitle = { fontSize: 12.5, color: T.dim, fontWeight: 600, marginBottom: 2 };
+            const sel = { boxSizing: "border-box", background: "#101216", border: `1px solid ${T.line2}`, borderRadius: 4, color: T.text, fontSize: 13, padding: "7px 8px", fontFamily: fUI, width: "100%" };
+            const desc = { fontSize: 11.5, color: T.faint, lineHeight: 1.55 };
+            const arrowBtn = { width: 44, height: 44, borderRadius: 8, border: `1px solid ${T.line2}`, background: "#101216", color: T.text, fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" };
+            return (
+              <div id="aver-tracking-wrapper" key="tracking" className="aver-fade" style={{ width: "100%", maxWidth: "1350px", margin: "0 auto", height: "100%", overflowY: "auto", paddingRight: 8, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 14 }}>
+                {/* 上方:預覽 + 方向盤/Zoom + Save to Preset */}
+                <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+                  <div style={{ flex: 1, position: "relative", borderRadius: 10, overflow: "hidden", border: `1px solid ${T.line}`, aspectRatio: "16 / 9", background: "linear-gradient(160deg,#11151b,#05070a)", minHeight: 0 }}>
+                    <div style={{ position: "absolute", inset: 0, backgroundImage: "url(meeting_room.png)", backgroundSize: "cover", backgroundPosition: "center" }} />
+                  </div>
+                  <div style={{ flexShrink: 0, alignSelf: "flex-start", display: "flex", flexDirection: "column", gap: 10, background: T.panel, border: `1px solid ${T.line}`, borderRadius: 10, padding: 16 }}>
+                    <div style={{ display: "flex", gap: 14 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "44px 44px 44px", gridTemplateRows: "44px 44px 44px", gap: 6, justifyContent: "center" }}>
+                        <div /><button style={arrowBtn}>▲</button><div />
+                        <button style={arrowBtn}>◀</button><button style={{ ...arrowBtn, fontSize: 15 }}>⌂</button><button style={arrowBtn}>▶</button>
+                        <div /><button style={arrowBtn}>▼</button><div />
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, justifyContent: "center" }}>
+                        <span style={{ fontSize: 12, color: T.dim }}>Zoom</span>
+                        <button style={arrowBtn}>＋</button>
+                        <button style={arrowBtn}>－</button>
+                      </div>
+                    </div>
+                    <button style={{ padding: "10px 0", fontSize: 13.5, fontWeight: 600, cursor: "pointer", borderRadius: 6, border: `1px solid ${T.line2}`, background: "#101216", color: T.text, fontFamily: fUI }}>Save to Preset 1</button>
+                  </div>
+                </div>
+
+                {/* Tab 列 + 內容(版面同 Camera Settings:邊框面板 + 固定寬藍底分頁 + 分隔線) */}
+                <div style={{ background: T.panel, border: `1px solid ${T.line}`, borderRadius: 10, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                  {/* 分頁列 */}
+                  <div style={{ display: "flex", borderBottom: `1px solid ${T.line}` }}>
+                    {TRK_TABS.map(([id, lb]) => (
+                      <button key={id} onClick={() => updTrk("tab", id)}
+                        style={{ flex: "0 0 180px", padding: "9px 0", fontSize: 13.5, fontWeight: 600, cursor: "pointer", border: "none", background: trk.tab === id ? T.blue : "transparent", color: trk.tab === id ? "#fff" : T.dim, fontFamily: fUI, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                        {lb}{id === "gesture" && <span style={{ fontSize: 10, fontWeight: 700, color: "#fff", background: T.amber, borderRadius: 3, padding: "1px 5px" }}>Beta</span>}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* 分頁內容 */}
+                  <div style={{ padding: 16 }}>
+                {trk.tab === "presenter" ? (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, alignItems: "start" }}>
+                    {/* 第 1 欄 */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                      <div style={sec}>
+                        <div style={{ display: "flex", justifyContent: "space-between" }}><span style={secTitle}>Tracking Sensitivity</span><span style={{ fontFamily: fMono, color: T.blue, fontSize: 13 }}>{trk.sensitivity}</span></div>
+                        <input type="range" min={1} max={3} value={trk.sensitivity} onChange={(e) => updTrk("sensitivity", parseInt(e.target.value))} className="tr-sl" style={{ "--p": ((trk.sensitivity - 1) / 2) * 100 + "%", width: "100%" }} />
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: T.faint }}><span>1</span><span>3</span></div>
+                      </div>
+                      <div style={sec}>
+                        <div style={{ display: "flex", justifyContent: "space-between" }}><span style={secTitle}>Time of Return to Tracking Point</span><span style={{ fontFamily: fMono, color: T.blue, fontSize: 13 }}>{trk.returnTime}</span></div>
+                        <input type="range" min={3} max={10} value={trk.returnTime} onChange={(e) => updTrk("returnTime", parseInt(e.target.value))} className="tr-sl" style={{ "--p": ((trk.returnTime - 3) / 7) * 100 + "%", width: "100%" }} />
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: T.faint }}><span>3</span><span>10</span></div>
+                      </div>
+                      <div style={sec}>
+                        <div onClick={() => updTrk("effectiveArea", !trk.effectiveArea)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
+                          <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ width: 16, height: 16, borderRadius: 3, border: `1.5px solid ${trk.effectiveArea ? T.blue : T.line2}`, background: trk.effectiveArea ? T.blue : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#fff" }}>{trk.effectiveArea && "✓"}</span>
+                            <span style={{ fontSize: 13, color: T.text }}>Effective Tracking Area</span>
+                          </span>
+                          <button style={{ padding: "5px 14px", fontSize: 12.5, cursor: "pointer", borderRadius: 4, border: `1px solid ${T.line2}`, background: "#101216", color: T.text, fontFamily: fUI }}>Set</button>
+                        </div>
+                        <div style={desc}>When Effective Tracking Area is on, camera only tracks around the selected area, please configure the targeted area from the live view.</div>
+                      </div>
+                    </div>
+
+                    {/* 第 2 欄 */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                      <div style={sec}>
+                        <span style={secTitle}>Tracking Point</span>
+                        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                          <input value={trk.presetPoint} onChange={(e) => updTrk("presetPoint", e.target.value)} style={{ ...sel, flex: 1 }} />
+                          <button style={{ padding: "7px 16px", fontSize: 13, cursor: "pointer", borderRadius: 4, border: `1px solid ${T.line2}`, background: "#101216", color: T.text, fontFamily: fUI }}>Save</button>
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 4 }}>
+                          <div><div style={{ ...secTitle, marginBottom: 4 }}>People Size</div>
+                            <select value={trk.peopleSize} onChange={(e) => updTrk("peopleSize", e.target.value)} style={sel}><option>Upper Body</option><option>Full Body</option><option>Close Up</option></select>
+                          </div>
+                          <div><div style={{ ...secTitle, marginBottom: 4 }}>Placement</div>
+                            <select value={trk.placement} onChange={(e) => updTrk("placement", e.target.value)} style={sel}><option>Center</option><option>Left</option><option>Right</option></select>
+                          </div>
+                          <div><div style={{ ...secTitle, marginBottom: 4 }}>Height</div>
+                            <select value={trk.height} onChange={(e) => updTrk("height", e.target.value)} style={sel}><option>Height1</option><option>Height2</option><option>Height3</option></select>
+                          </div>
+                        </div>
+                      </div>
+                      <div style={sec}>
+                        <div style={{ display: "flex", gap: 24 }}>
+                          {[["autoZoom", "Auto Zoom"], ["autoTilt", "Auto Tilt"]].map(([k, lb]) => (
+                            <div key={k} onClick={() => updTrk(k, !trk[k])} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                              <span style={{ width: 16, height: 16, borderRadius: 3, border: `1.5px solid ${trk[k] ? T.blue : T.line2}`, background: trk[k] ? T.blue : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#fff" }}>{trk[k] && "✓"}</span>
+                              <span style={{ fontSize: 13, color: T.text }}>{lb}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div style={desc}>When Auto Zoom is off, camera stops zooming in/out automatically and shoots the presenter according to the shot size of the preset you choose.</div>
+                        <select value={trk.autoZoomPreset} onChange={(e) => updTrk("autoZoomPreset", e.target.value)} style={sel}><option>Preset 1</option><option>Preset 2</option><option>Preset 3</option></select>
+                      </div>
+                    </div>
+
+                    {/* 第 3 欄 */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                      <div style={sec}>
+                        <span style={{ display: "flex", alignItems: "center", gap: 6, ...secTitle }}>Multi-Presenter Detection <span style={{ color: T.faint, fontSize: 11 }}>ⓘ</span></span>
+                        <div style={desc}>When more than one presenter is detected, the camera will zoom out to focus on more people, so everybody is framed into the view. Please choose a preset below to be the zoom size for the multi-presenter focus area.</div>
+                        <select value={trk.multiPresenter} onChange={(e) => updTrk("multiPresenter", e.target.value)} style={sel}><option value="off">Off</option><option value="preset1">Preset 1</option><option value="preset2">Preset 2</option></select>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ minHeight: 220, display: "flex", alignItems: "center", justifyContent: "center", color: T.faint, fontSize: 13, border: `1px dashed ${T.line2}`, borderRadius: 8 }}>
+                    （此 Tab 內容待補）
+                  </div>
+                  )}
+                  </div>
+                </div>
+              </div>
+            );
+          })()
         ) : (
           <div id="aver-video-audio-wrapper" key="video" className="aver-fade" style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%", maxWidth: "1350px", margin: "0 auto", height: "100%", overflowY: "auto", paddingRight: 8, boxSizing: "border-box" }}>
             
