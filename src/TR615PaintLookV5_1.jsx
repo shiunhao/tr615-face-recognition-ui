@@ -1227,27 +1227,38 @@ export default function App() {
   const [ptz, setPtz] = useState({ pan: 0, tilt: 0, zoom: 1.0 });
   const handlePtz = (action) => {
     setPtz((p) => {
-      const step = 24 / p.zoom; // 隨放大倍率調整移動步長，手感更細膩
-      switch (action) {
-        case "up":
-          return { ...p, tilt: Math.max(p.tilt - step, -180) };
-        case "down":
-          return { ...p, tilt: Math.min(p.tilt + step, 180) };
-        case "left":
-          return { ...p, pan: Math.max(p.pan - step, -300) };
-        case "right":
-          return { ...p, pan: Math.min(p.pan + step, 300) };
-        case "home":
-          return { pan: 0, tilt: 0, zoom: 1.0 };
-        case "zoom_in":
-          return { ...p, zoom: Math.min(p.zoom + 0.15, 3.5) };
-        case "zoom_out":
-          return { ...p, zoom: Math.max(p.zoom - 0.15, 1.0) };
-        default:
-          return p;
+      const BASE_SCALE = 1.35; // 預設放大 1.35 倍，作為鏡頭水平與垂直轉動的緩衝空間，絕不露出黑邊
+      let nextZoom = p.zoom;
+      if (action === "zoom_in") nextZoom = Math.min(p.zoom + 0.15, 3.0);
+      if (action === "zoom_out") nextZoom = Math.max(p.zoom - 0.15, 1.0);
+      if (action === "home") nextZoom = 1.0;
+
+      const S = BASE_SCALE * nextZoom;
+      // 計算最大允許百分比位移限制，防止平移時露出背景黑邊
+      const maxPanPercent = ((S - 1) / 2) * 100;
+      const maxTiltPercent = ((S - 1) / 2) * 100;
+
+      let nextPan = p.pan;
+      let nextTilt = p.tilt;
+      const step = 4.5 / nextZoom; // 隨變焦倍率自動調減步長，提供高倍率下的細膩微調手感
+
+      if (action === "up") nextTilt = p.tilt - step;
+      if (action === "down") nextTilt = p.tilt + step;
+      if (action === "left") nextPan = p.pan - step;
+      if (action === "right") nextPan = p.pan + step;
+      if (action === "home") {
+        nextPan = 0;
+        nextTilt = 0;
       }
+
+      // 限幅邊界約束
+      nextPan = Math.max(Math.min(nextPan, maxPanPercent), -maxPanPercent);
+      nextTilt = Math.max(Math.min(nextTilt, maxTiltPercent), -maxTiltPercent);
+
+      return { pan: nextPan, tilt: nextTilt, zoom: nextZoom };
     });
   };
+
 
 
   // Audio Integrated 頁面狀態
@@ -3591,7 +3602,7 @@ export default function App() {
                         backgroundImage: "url(meeting_room.png)", 
                         backgroundSize: "cover", 
                         backgroundPosition: "center",
-                        transform: `translate(${ptz.pan}px, ${ptz.tilt}px) scale(${ptz.zoom})`,
+                        transform: `translate(${ptz.pan}%, ${ptz.tilt}%) scale(${ptz.zoom * 1.35})`,
                         transition: "transform 0.25s cubic-bezier(0.1, 0.8, 0.2, 1)"
                       }} />
                     </div>
@@ -4487,7 +4498,7 @@ export default function App() {
                       backgroundImage: "url(meeting_room.png)", 
                       backgroundSize: "cover", 
                       backgroundPosition: "center",
-                      transform: `translate(${ptz.pan}px, ${ptz.tilt}px) scale(${ptz.zoom})`,
+                      transform: `translate(${ptz.pan}%, ${ptz.tilt}%) scale(${ptz.zoom * 1.35})`,
                       transition: "transform 0.25s cubic-bezier(0.1, 0.8, 0.2, 1)"
                     }} />
                   </div>
