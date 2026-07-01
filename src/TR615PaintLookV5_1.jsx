@@ -1227,7 +1227,7 @@ export default function App() {
   const [ptz, setPtz] = useState({ pan: 0, tilt: 0, zoom: 1.0 });
   const handlePtz = (action) => {
     setPtz((p) => {
-      const BASE_SCALE = 1.35; // 預設放大 1.35 倍，作為鏡頭水平與垂直轉動的緩衝空間，絕不露出黑邊
+      const BASE_SCALE = 1.65; // 提升為 1.65 倍，大幅提供相機鏡頭向四周轉動的視野空間，且依然完美限幅防黑邊
       let nextZoom = p.zoom;
       if (action === "zoom_in") nextZoom = Math.min(p.zoom + 0.15, 3.0);
       if (action === "zoom_out") nextZoom = Math.max(p.zoom - 0.15, 1.0);
@@ -1240,12 +1240,15 @@ export default function App() {
 
       let nextPan = p.pan;
       let nextTilt = p.tilt;
-      const step = 4.5 / nextZoom; // 隨變焦倍率自動調減步長，提供高倍率下的細膩微調手感
+      
+      // 結合實機 UI 中的 Pan Speed 與 Tilt Speed 進行步長計算 (預設值 7)
+      const panStep = (live.panSpeed / 7.0) * (4.5 / nextZoom);
+      const tiltStep = (live.tiltSpeed / 7.0) * (4.5 / nextZoom);
 
-      if (action === "up") nextTilt = p.tilt + step;
-      if (action === "down") nextTilt = p.tilt - step;
-      if (action === "left") nextPan = p.pan + step;
-      if (action === "right") nextPan = p.pan - step;
+      if (action === "up") nextTilt = p.tilt + tiltStep;
+      if (action === "down") nextTilt = p.tilt - tiltStep;
+      if (action === "left") nextPan = p.pan + panStep;
+      if (action === "right") nextPan = p.pan - panStep;
       if (action === "home") {
         nextPan = 0;
         nextTilt = 0;
@@ -3602,7 +3605,7 @@ export default function App() {
                         backgroundImage: "url(meeting_room.png)", 
                         backgroundSize: "cover", 
                         backgroundPosition: "center",
-                        transform: `translate(${ptz.pan}%, ${ptz.tilt}%) scale(${ptz.zoom * 1.35})`,
+                        transform: `translate(${ptz.pan}%, ${ptz.tilt}%) scale(${ptz.zoom * 1.65})`,
                         transition: "transform 0.25s cubic-bezier(0.1, 0.8, 0.2, 1)"
                       }} />
                     </div>
@@ -4498,7 +4501,7 @@ export default function App() {
                       backgroundImage: "url(meeting_room.png)", 
                       backgroundSize: "cover", 
                       backgroundPosition: "center",
-                      transform: `translate(${ptz.pan}%, ${ptz.tilt}%) scale(${ptz.zoom * 1.35})`,
+                      transform: `translate(${ptz.pan}%, ${ptz.tilt}%) scale(${ptz.zoom * 1.65})`,
                       transition: "transform 0.25s cubic-bezier(0.1, 0.8, 0.2, 1)"
                     }} />
                   </div>
