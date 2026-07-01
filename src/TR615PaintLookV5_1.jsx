@@ -1223,6 +1223,60 @@ export default function App() {
   const [imgLoaded, setImgLoaded] = useState(false);
   const [deletingScene, setDeletingScene] = useState(null);
 
+  // Audio Integrated 頁面狀態
+  const [audioInt, setAudioInt] = useState({
+    micIp: "10.100.10.90",
+    micBrand: "Shure",
+    isConnected: false,
+    backTimer: "Off",
+    preset: "Preset 0",
+    triggerTime: "0.5 sec",
+    channels: Array.from({ length: 8 }, (_, i) => ({
+      id: i + 1,
+      camera: "Off",
+      tracking: "Off",
+      scene: "Off"
+    }))
+  });
+  const updAudioInt = (k, v) => setAudioInt((p) => ({ ...p, [k]: v }));
+  const [activeMics, setActiveMics] = useState(Array(8).fill(false));
+  const [editingAudioChan, setEditingAudioChan] = useState(null);
+  const [edChanCam, setEdChanCam] = useState("Off");
+  const [edChanTrk, setEdChanTrk] = useState("Off");
+  const [edChanScene, setEdChanScene] = useState("Off");
+
+  useEffect(() => {
+    if (!audioInt.isConnected) {
+      setActiveMics(Array(8).fill(false));
+      return;
+    }
+    const interval = setInterval(() => {
+      setActiveMics(Array.from({ length: 8 }, () => Math.random() > 0.7));
+    }, 1500);
+    return () => clearInterval(interval);
+  }, [audioInt.isConnected]);
+
+  const openEditAudioChan = (chan) => {
+    setEditingAudioChan(chan.id);
+    setEdChanCam(chan.camera);
+    setEdChanTrk(chan.tracking);
+    setEdChanScene(chan.scene);
+  };
+
+  const saveAudioChan = () => {
+    setAudioInt((p) => ({
+      ...p,
+      channels: p.channels.map((c) =>
+        c.id === editingAudioChan
+          ? { ...c, camera: edChanCam, tracking: edChanTrk, scene: edChanScene }
+          : c
+      )
+    }));
+    setEditingAudioChan(null);
+    setToast(`Saved settings for Channel ${editingAudioChan}`);
+  };
+
+
   // 選單頁面狀態："paint" (Paint / Look), "video" (Video & Audio)
   const [activeMenu, setActiveMenu] = useState("paint");
   const [paintLayout, setPaintLayout] = useState("classic"); // "classic" 經典 | "cinema" 劇院
@@ -3148,7 +3202,7 @@ export default function App() {
           ["Tracking Settings", "tracking", true], 
           ["NDI", "ndi", true], 
           ["System", "system", true], 
-          ["Audio Integrated", "audio_int", false]
+          ["Audio Integrated", "audio_int", true]
         ].map(([lb, id, implement]) => {
           const active = activeMenu === id;
           return (
@@ -3169,7 +3223,7 @@ export default function App() {
             </div>
           );
         })}
-        {(activeMenu === "camera" || activeMenu === "live" || activeMenu === "network" || activeMenu === "tracking" || activeMenu === "ndi" || activeMenu === "system") && (
+        {(activeMenu === "camera" || activeMenu === "live" || activeMenu === "network" || activeMenu === "tracking" || activeMenu === "ndi" || activeMenu === "system" || activeMenu === "audio_int") && (
           <div className="aver-fade" style={{ margin: "8px 0 0", padding: "12px 18px 16px", borderTop: `1px solid ${T.line}`, display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ fontSize: 12, letterSpacing: 1, color: T.faint, fontWeight: 600, textTransform: "uppercase" }}>Tracking Control</div>
             <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
@@ -4504,6 +4558,259 @@ export default function App() {
               </div>
             );
           })()
+        ) : activeMenu === "audio_int" ? (
+          (() => {
+            const card = { border: `1.5px solid ${T.line}`, borderRadius: 4, background: "#08090a", display: "flex", flexDirection: "column", boxSizing: "border-box" };
+            const head = { background: "#22252a", padding: "6px 12px", fontSize: 14, fontWeight: 600, color: T.dim, borderBottom: `1.5px solid ${T.line}` };
+            const body = { padding: "14px 14px 16px", display: "flex", flexDirection: "column", gap: 12 };
+            const lab = { fontSize: 12.5, color: T.dim, marginBottom: 5, fontWeight: 600 };
+            const inp = (val, disabled) => ({ width: "100%", boxSizing: "border-box", background: disabled ? "#0a0b0c" : "#101216", border: `1px solid ${T.line2}`, borderRadius: 4, color: disabled ? T.faint : T.text, fontSize: 13.5, padding: "8px 10px", fontFamily: fUI, outline: "none" });
+            const sel = { width: "100%", boxSizing: "border-box", background: "#101216", border: `1px solid ${T.line2}`, borderRadius: 4, color: T.text, fontSize: 13.5, padding: "8px 10px", fontFamily: fUI, outline: "none" };
+            const Btn = ({ children, disabled, onClick }) => (
+              <button disabled={disabled} onClick={onClick} style={{ flex: 1, padding: "8px 18px", fontSize: 13.5, fontWeight: 600, cursor: disabled ? "not-allowed" : "pointer", borderRadius: 4, border: `1px solid ${T.line2}`, background: disabled ? "#0d0f11" : "#1a1d21", color: disabled ? T.faint : T.text, fontFamily: fUI }}>{children}</button>
+            );
+            
+            const PillRow = ({ k, opts, val }) => (
+              <div style={{ display: "flex", gap: 6, width: "100%" }}>
+                {opts.map((o) => {
+                  const active = val === o;
+                  return (
+                    <button
+                      key={o}
+                      onClick={() => updAudioInt(k, o)}
+                      style={{
+                        flex: 1,
+                        padding: "6px 0",
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        borderRadius: 16,
+                        border: `1px solid ${active ? T.blue : T.line2}`,
+                        background: active ? T.blue : "#101216",
+                        color: active ? "#fff" : T.text,
+                        fontFamily: fUI,
+                        transition: "all 0.2s ease"
+                      }}
+                    >
+                      {o}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+
+            return (
+              <div id="aver-audio-integrated-wrapper" key="audio_int" className="aver-fade" style={{ width: "100%", maxWidth: "1350px", margin: "0 auto", height: "100%", overflowY: "auto", paddingRight: 8, boxSizing: "border-box", display: "flex", gap: 20, alignItems: "flex-start" }}>
+                <div style={{ width: 300, flexShrink: 0, ...card }}>
+                  <div style={head}>Mic Settings</div>
+                  <div style={body}>
+                    <div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
+                        <span style={{ fontSize: 12.5, color: T.dim, fontWeight: 600 }}>Mic IP</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: audioInt.isConnected ? T.green : "#e05c5c", transition: "color 0.3s ease" }}>
+                          {audioInt.isConnected ? "connected" : "disconnect"}
+                        </span>
+                      </div>
+                      <input 
+                        value={audioInt.micIp} 
+                        onChange={(e) => updAudioInt("micIp", e.target.value)} 
+                        style={inp(audioInt.micIp, audioInt.isConnected)} 
+                        disabled={audioInt.isConnected}
+                      />
+                    </div>
+
+                    <div>
+                      <div style={lab}>Mic Brand</div>
+                      <select 
+                        value={audioInt.micBrand} 
+                        onChange={(e) => updAudioInt("micBrand", e.target.value)} 
+                        style={sel}
+                        disabled={audioInt.isConnected}
+                      >
+                        <option>Shure</option>
+                        <option>Sennheiser</option>
+                        <option>Yamaha</option>
+                        <option>ClearOne</option>
+                        <option>Audio-Technica</option>
+                      </select>
+                    </div>
+
+                    <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+                      <Btn 
+                        disabled={audioInt.isConnected} 
+                        onClick={() => {
+                          setToast("Connecting to Mic...");
+                          setTimeout(() => {
+                            updAudioInt("isConnected", true);
+                            setToast("Mic Connected successfully");
+                          }, 600);
+                        }}
+                      >
+                        Start
+                      </Btn>
+                      <Btn 
+                        disabled={!audioInt.isConnected} 
+                        onClick={() => {
+                          updAudioInt("isConnected", false);
+                          setToast("Mic Disconnected");
+                        }}
+                      >
+                        STOP
+                      </Btn>
+                    </div>
+
+                    <div style={{ borderTop: `1px solid ${T.line}`, margin: "8px 0" }} />
+                    <div style={{ fontSize: 13, fontWeight: 600, color: T.text, marginBottom: 2 }}>Back To Preset</div>
+
+                    <div>
+                      <div style={lab}>Back Timer</div>
+                      <PillRow k="backTimer" opts={["Off", "3 sec", "6 sec", "9 sec"]} val={audioInt.backTimer} />
+                    </div>
+
+                    <div>
+                      <div style={lab}>Preset</div>
+                      <select 
+                        value={audioInt.preset} 
+                        onChange={(e) => updAudioInt("preset", e.target.value)} 
+                        style={sel}
+                      >
+                        {Array.from({ length: 10 }, (_, i) => (
+                          <option key={i}>Preset {i}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <div style={lab}>Time to Trigger Preset</div>
+                      <PillRow k="triggerTime" opts={["0.5 sec", "1 sec", "2 sec", "3 sec"]} val={audioInt.triggerTime} />
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ flex: 1, ...card }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr 1.2fr 1.2fr 1.5fr 1.2fr", background: "#22252a", padding: "10px 16px", borderBottom: `1.5px solid ${T.line}`, fontSize: 13.5, fontWeight: 600, color: T.dim }}>
+                    <div>Microphone</div>
+                    <div style={{ textAlign: "center" }}>State</div>
+                    <div>Camera</div>
+                    <div>Tracking</div>
+                    <div>Scenes</div>
+                    <div style={{ textAlign: "center" }}>Edit Scenes</div>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    {audioInt.channels.map((chan, idx) => {
+                      const isActive = activeMics[idx];
+                      return (
+                        <div 
+                          key={chan.id} 
+                          style={{ 
+                            display: "grid", 
+                            gridTemplateColumns: "1.2fr 0.8fr 1.2fr 1.2fr 1.5fr 1.2fr", 
+                            alignItems: "center", 
+                            padding: "10px 16px", 
+                            borderBottom: idx === 7 ? "none" : `1px solid ${T.line}`,
+                            background: idx % 2 === 0 ? "rgba(255, 255, 255, 0.01)" : "transparent"
+                          }}
+                        >
+                          <div style={{ fontSize: 13.5, color: T.text, fontWeight: 500 }}>
+                            Channel {chan.id}
+                          </div>
+
+                          <div style={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
+                            <span 
+                              style={{ 
+                                width: 10, 
+                                height: 10, 
+                                borderRadius: "50%", 
+                                background: !audioInt.isConnected ? "#3a4048" : isActive ? T.green : "#1d5836",
+                                boxShadow: audioInt.isConnected && isActive ? `0 0 10px ${T.green}` : "none",
+                                transition: "all 0.25s ease",
+                                display: "inline-block"
+                              }} 
+                            />
+                          </div>
+
+                          <div>
+                            <select 
+                              value={chan.camera} 
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setAudioInt(p => ({
+                                  ...p,
+                                  channels: p.channels.map(c => c.id === chan.id ? { ...c, camera: val } : c)
+                                }));
+                              }}
+                              style={{ ...sel, padding: "5px 8px", fontSize: 13, width: "90%" }}
+                            >
+                              <option>Off</option>
+                              {Array.from({ length: 9 }, (_, i) => (
+                                <option key={i + 1}>Preset {i + 1}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div>
+                            <select 
+                              value={chan.tracking} 
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setAudioInt(p => ({
+                                  ...p,
+                                  channels: p.channels.map(c => c.id === chan.id ? { ...c, tracking: val } : c)
+                                }));
+                              }}
+                              style={{ ...sel, padding: "5px 8px", fontSize: 13, width: "90%" }}
+                            >
+                              <option>Off</option>
+                              <option>On</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <select 
+                              value={chan.scene} 
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setAudioInt(p => ({
+                                  ...p,
+                                  channels: p.channels.map(c => c.id === chan.id ? { ...c, scene: val } : c)
+                                }));
+                              }}
+                              style={{ ...sel, padding: "5px 8px", fontSize: 13, width: "92%" }}
+                            >
+                              <option>Off</option>
+                              {scenes.map((s) => (
+                                <option key={s.id}>{s.name}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div style={{ display: "flex", justifyContent: "center" }}>
+                            <button 
+                              onClick={() => openEditAudioChan(chan)}
+                              style={{ 
+                                padding: "6px 14px", 
+                                fontSize: 12.5, 
+                                cursor: "pointer", 
+                                borderRadius: 4, 
+                                border: `1px solid ${T.line2}`, 
+                                background: "#101216", 
+                                color: T.text, 
+                                fontFamily: fUI,
+                                transition: "background 0.25s ease"
+                              }}
+                            >
+                              Edit Scenes
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            );
+          })()
         ) : (
           <div id="aver-video-audio-wrapper" key="video" className="aver-fade" style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%", maxWidth: "1350px", margin: "0 auto", height: "100%", overflowY: "auto", paddingRight: 8, boxSizing: "border-box" }}>
             
@@ -5015,6 +5322,125 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {/* Audio Integrated Channel Edit Modal */}
+        {editingAudioChan != null && (() => {
+          return (
+            <div 
+              style={{
+                position: "fixed",
+                inset: 0,
+                background: "rgba(0, 0, 0, 0.65)",
+                backdropFilter: "blur(4px)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 1000,
+                animation: "fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)"
+              }} 
+              onClick={() => setEditingAudioChan(null)}
+            >
+              <div 
+                style={{
+                  background: T.panel,
+                  border: `1px solid ${T.line}`,
+                  borderRadius: 12,
+                  width: 400,
+                  padding: 24,
+                  boxShadow: "0 12px 36px rgba(0, 0, 0, 0.55)",
+                  animation: "scaleIn 0.36s cubic-bezier(0.34, 1.56, 0.64, 1)"
+                }} 
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                  <span style={{ fontSize: 18, fontWeight: 600, color: T.text }}>Edit Channel {editingAudioChan} Scenes</span>
+                  <button 
+                    onClick={() => setEditingAudioChan(null)} 
+                    style={{ background: "none", border: "none", cursor: "pointer", color: T.dim, fontSize: 16, padding: 0 }}
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 24 }}>
+                  <div>
+                    <div style={{ fontSize: 13.5, color: T.dim, marginBottom: 6, fontWeight: 600 }}>Camera (Preset)</div>
+                    <select 
+                      value={edChanCam} 
+                      onChange={(e) => setEdChanCam(e.target.value)} 
+                      style={{ width: "100%", boxSizing: "border-box", background: "#101216", border: `1px solid ${T.line2}`, borderRadius: 6, color: T.text, fontSize: 14, padding: "8px 12px", outline: "none", fontFamily: fUI }}
+                    >
+                      <option>Off</option>
+                      {Array.from({ length: 9 }, (_, i) => (
+                        <option key={i + 1}>Preset {i + 1}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: 13.5, color: T.dim, marginBottom: 6, fontWeight: 600 }}>Tracking</div>
+                    <select 
+                      value={edChanTrk} 
+                      onChange={(e) => setEdChanTrk(e.target.value)} 
+                      style={{ width: "100%", boxSizing: "border-box", background: "#101216", border: `1px solid ${T.line2}`, borderRadius: 6, color: T.text, fontSize: 14, padding: "8px 12px", outline: "none", fontFamily: fUI }}
+                    >
+                      <option>Off</option>
+                      <option>On</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: 13.5, color: T.dim, marginBottom: 6, fontWeight: 600 }}>Scenes</div>
+                    <select 
+                      value={edChanScene} 
+                      onChange={(e) => setEdChanScene(e.target.value)} 
+                      style={{ width: "100%", boxSizing: "border-box", background: "#101216", border: `1px solid ${T.line2}`, borderRadius: 6, color: T.text, fontSize: 14, padding: "8px 12px", outline: "none", fontFamily: fUI }}
+                    >
+                      <option>Off</option>
+                      {scenes.map((s) => (
+                        <option key={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                  <button 
+                    onClick={() => setEditingAudioChan(null)} 
+                    style={{ 
+                      padding: "8px 16px", 
+                      fontSize: 14, 
+                      cursor: "pointer", 
+                      borderRadius: 6, 
+                      border: `1px solid ${T.line2}`, 
+                      background: "transparent", 
+                      color: T.dim, 
+                      fontFamily: fUI 
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={saveAudioChan} 
+                    style={{ 
+                      padding: "8px 20px", 
+                      fontSize: 14, 
+                      fontWeight: 600, 
+                      cursor: "pointer", 
+                      borderRadius: 6, 
+                      border: "none", 
+                      background: T.blue, 
+                      color: "#fff", 
+                      fontFamily: fUI 
+                    }}
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* 右側懸浮工具(最高層級):Multi-Matrix 樣式切換鈕(僅 multi 區) + 導覽 i 鈕。
             Matrix 視覺化與版面切換鈕已依 PM 定案移除。 */}
