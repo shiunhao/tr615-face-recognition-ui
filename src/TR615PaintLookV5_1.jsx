@@ -1242,10 +1242,10 @@ export default function App() {
       let nextTilt = p.tilt;
       const step = 4.5 / nextZoom; // 隨變焦倍率自動調減步長，提供高倍率下的細膩微調手感
 
-      if (action === "up") nextTilt = p.tilt - step;
-      if (action === "down") nextTilt = p.tilt + step;
-      if (action === "left") nextPan = p.pan - step;
-      if (action === "right") nextPan = p.pan + step;
+      if (action === "up") nextTilt = p.tilt + step;
+      if (action === "down") nextTilt = p.tilt - step;
+      if (action === "left") nextPan = p.pan + step;
+      if (action === "right") nextPan = p.pan - step;
       if (action === "home") {
         nextPan = 0;
         nextTilt = 0;
