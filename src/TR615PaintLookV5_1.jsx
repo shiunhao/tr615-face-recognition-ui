@@ -1223,6 +1223,33 @@ export default function App() {
   const [imgLoaded, setImgLoaded] = useState(false);
   const [deletingScene, setDeletingScene] = useState(null);
 
+  // PTZ 控制狀態 (Live View 與 Tracking Settings 連動)
+  const [ptz, setPtz] = useState({ pan: 0, tilt: 0, zoom: 1.0 });
+  const handlePtz = (action) => {
+    setPtz((p) => {
+      const step = 24 / p.zoom; // 隨放大倍率調整移動步長，手感更細膩
+      switch (action) {
+        case "up":
+          return { ...p, tilt: Math.max(p.tilt - step, -180) };
+        case "down":
+          return { ...p, tilt: Math.min(p.tilt + step, 180) };
+        case "left":
+          return { ...p, pan: Math.max(p.pan - step, -300) };
+        case "right":
+          return { ...p, pan: Math.min(p.pan + step, 300) };
+        case "home":
+          return { pan: 0, tilt: 0, zoom: 1.0 };
+        case "zoom_in":
+          return { ...p, zoom: Math.min(p.zoom + 0.15, 3.5) };
+        case "zoom_out":
+          return { ...p, zoom: Math.max(p.zoom - 0.15, 1.0) };
+        default:
+          return p;
+      }
+    });
+  };
+
+
   // Audio Integrated 頁面狀態
   const [audioInt, setAudioInt] = useState({
     micIp: "10.100.10.90",
@@ -3558,7 +3585,15 @@ export default function App() {
                   <div style={{ position: "relative", borderRadius: 10, overflow: "hidden", border: `1px solid ${T.line}`, width: "100%", flex: 1, minHeight: 0, background: "#000", display: "flex", alignItems: "center", justifyContent: "center", boxSizing: "border-box" }}>
                     {/* 內層 16:9 預覽區：高度 100% 填滿，寬度依 16:9 比例自適應，於左右留下黑邊 */}
                     <div style={{ position: "relative", height: "100%", width: "auto", aspectRatio: "16 / 9", overflow: "hidden" }}>
-                      <div style={{ position: "absolute", inset: 0, backgroundImage: "url(meeting_room.png)", backgroundSize: "cover", backgroundPosition: "center" }} />
+                      <div style={{ 
+                        position: "absolute", 
+                        inset: 0, 
+                        backgroundImage: "url(meeting_room.png)", 
+                        backgroundSize: "cover", 
+                        backgroundPosition: "center",
+                        transform: `translate(${ptz.pan}px, ${ptz.tilt}px) scale(${ptz.zoom})`,
+                        transition: "transform 0.25s cubic-bezier(0.1, 0.8, 0.2, 1)"
+                      }} />
                     </div>
                   </div>
 
@@ -3581,19 +3616,19 @@ export default function App() {
                         <div style={{ ...sec, display: "flex", gap: 14, alignItems: "center" }}>
                           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 42px)", gridTemplateRows: "repeat(3, 42px)", gap: 5 }}>
                             <span />
-                            <button id="aver-live-btn-pan-up" style={sqStyle(false)}>▲</button>
+                            <button id="aver-live-btn-pan-up" onClick={() => handlePtz("up")} style={sqStyle(false)}>▲</button>
                             <span />
-                            <button id="aver-live-btn-pan-left" style={sqStyle(false)}>◀</button>
-                            <button id="aver-live-btn-pan-home" style={{ ...sqStyle(false), borderRadius: "50%", fontSize: 15 }}>⌂</button>
-                            <button id="aver-live-btn-pan-right" style={sqStyle(false)}>▶</button>
+                            <button id="aver-live-btn-pan-left" onClick={() => handlePtz("left")} style={sqStyle(false)}>◀</button>
+                            <button id="aver-live-btn-pan-home" onClick={() => handlePtz("home")} style={{ ...sqStyle(false), borderRadius: "50%", fontSize: 15 }}>⌂</button>
+                            <button id="aver-live-btn-pan-right" onClick={() => handlePtz("right")} style={sqStyle(false)}>▶</button>
                             <span />
-                            <button id="aver-live-btn-pan-down" style={sqStyle(false)}>▼</button>
+                            <button id="aver-live-btn-pan-down" onClick={() => handlePtz("down")} style={sqStyle(false)}>▼</button>
                             <span />
                           </div>
                           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
                             <span style={{ fontSize: 12, color: T.faint }}>Zoom</span>
-                            <button id="aver-live-btn-zoom-in" style={sqStyle(false)}>＋</button>
-                            <button id="aver-live-btn-zoom-out" style={sqStyle(false)}>－</button>
+                            <button id="aver-live-btn-zoom-in" onClick={() => handlePtz("zoom_in")} style={sqStyle(false)}>＋</button>
+                            <button id="aver-live-btn-zoom-out" onClick={() => handlePtz("zoom_out")} style={sqStyle(false)}>－</button>
                           </div>
                         </div>
 
@@ -4446,19 +4481,27 @@ export default function App() {
                 {/* 上方:預覽 + 方向盤/Zoom + Save to Preset */}
                 <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
                   <div style={{ flex: 1, position: "relative", borderRadius: 10, overflow: "hidden", border: `1px solid ${T.line}`, aspectRatio: "16 / 9", background: "linear-gradient(160deg,#11151b,#05070a)", minHeight: 0 }}>
-                    <div style={{ position: "absolute", inset: 0, backgroundImage: "url(meeting_room.png)", backgroundSize: "cover", backgroundPosition: "center" }} />
+                    <div style={{ 
+                      position: "absolute", 
+                      inset: 0, 
+                      backgroundImage: "url(meeting_room.png)", 
+                      backgroundSize: "cover", 
+                      backgroundPosition: "center",
+                      transform: `translate(${ptz.pan}px, ${ptz.tilt}px) scale(${ptz.zoom})`,
+                      transition: "transform 0.25s cubic-bezier(0.1, 0.8, 0.2, 1)"
+                    }} />
                   </div>
                   <div style={{ flexShrink: 0, alignSelf: "flex-start", display: "flex", flexDirection: "column", gap: 10, background: T.panel, border: `1px solid ${T.line}`, borderRadius: 10, padding: 16 }}>
                     <div style={{ display: "flex", gap: 14 }}>
                       <div style={{ display: "grid", gridTemplateColumns: "44px 44px 44px", gridTemplateRows: "44px 44px 44px", gap: 6, justifyContent: "center" }}>
-                        <div /><button style={arrowBtn}>▲</button><div />
-                        <button style={arrowBtn}>◀</button><button style={{ ...arrowBtn, fontSize: 15 }}>⌂</button><button style={arrowBtn}>▶</button>
-                        <div /><button style={arrowBtn}>▼</button><div />
+                        <div /><button onClick={() => handlePtz("up")} style={arrowBtn}>▲</button><div />
+                        <button onClick={() => handlePtz("left")} style={arrowBtn}>◀</button><button onClick={() => handlePtz("home")} style={{ ...arrowBtn, fontSize: 15 }}>⌂</button><button onClick={() => handlePtz("right")} style={arrowBtn}>▶</button>
+                        <div /><button onClick={() => handlePtz("down")} style={arrowBtn}>▼</button><div />
                       </div>
                       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, justifyContent: "center" }}>
                         <span style={{ fontSize: 12, color: T.dim }}>Zoom</span>
-                        <button style={arrowBtn}>＋</button>
-                        <button style={arrowBtn}>－</button>
+                        <button onClick={() => handlePtz("zoom_in")} style={arrowBtn}>＋</button>
+                        <button onClick={() => handlePtz("zoom_out")} style={arrowBtn}>－</button>
                       </div>
                     </div>
                     <button style={{ padding: "10px 0", fontSize: 13.5, fontWeight: 600, cursor: "pointer", borderRadius: 6, border: `1px solid ${T.line2}`, background: "#101216", color: T.text, fontFamily: fUI }}>Save to Preset 1</button>
