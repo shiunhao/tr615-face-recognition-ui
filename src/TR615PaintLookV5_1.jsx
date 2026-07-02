@@ -3018,42 +3018,6 @@ export default function App() {
 
   return (
     <div id="aver-paint-look-root" style={{ position: "relative", background: T.page, width: "100%", height: "100vh", fontFamily: fUI, color: T.text, display: "flex", overflow: "hidden" }}>
-      
-      {/* 全畫面 12-Column Grid 輔助線 Overlay */}
-      {showGrid && (
-        <div style={{
-          position: "fixed",
-          left: 0,
-          right: 0,
-          top: 0,
-          bottom: 0,
-          pointerEvents: "none",
-          zIndex: 99999,
-          display: "grid",
-          gridTemplateColumns: "repeat(12, 1fr)",
-          columnGap: "14px",
-          padding: "0 16px",
-          boxSizing: "border-box"
-        }}>
-          {Array.from({ length: 12 }).map((_, i) => (
-            <div key={i} style={{
-              background: "rgba(255, 75, 75, 0.03)",
-              borderLeft: "1px dashed rgba(255, 75, 75, 0.18)",
-              borderRight: "1px dashed rgba(255, 75, 75, 0.18)",
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "space-between",
-              alignItems: "center",
-              padding: "24px 0",
-              boxSizing: "border-box"
-            }}>
-              <span style={{ fontSize: 9, fontFamily: fMono, color: "#ff4d4d", background: "rgba(20, 10, 10, 0.9)", padding: "2px 6px", borderRadius: 4, border: "1px solid rgba(255, 75, 75, 0.3)", fontWeight: "bold" }}>C{i + 1}</span>
-              <span style={{ fontSize: 9, fontFamily: fMono, color: "#ff4d4d", background: "rgba(20, 10, 10, 0.9)", padding: "2px 6px", borderRadius: 4, border: "1px solid rgba(255, 75, 75, 0.3)", fontWeight: "bold" }}>C{i + 1}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* 注入控制滑桿樣式與色環旋轉動畫 */}
       <style>{`
         /* 縮放 125% 與低高度螢幕適配滾動 */
@@ -3290,6 +3254,105 @@ export default function App() {
         .aver-gauge-pulse { animation: averGaugePulse 1.1s ease-out infinite; }
       `}</style>
 
+      {/* 全畫面 Grid 輔助線 Overlay (position: fixed，覆蓋 Sidebar + 主工作區) */}
+      {showGrid && (
+        <div id="aver-grid-overlay" style={{
+          position: "fixed",
+          inset: 0,
+          pointerEvents: "none",
+          zIndex: 99999,
+          display: "flex",
+          flexDirection: "column"
+        }}>
+          {/* 12 欄網格 */}
+          <div style={{
+            position: "absolute",
+            inset: 0,
+            display: "grid",
+            gridTemplateColumns: "repeat(12, 1fr)",
+            columnGap: "10px",
+            padding: "0 10px",
+            boxSizing: "border-box"
+          }}>
+            {Array.from({ length: 12 }).map((_, i) => (
+              <div key={i} style={{
+                background: "rgba(255, 75, 75, 0.03)",
+                borderLeft: "1px dashed rgba(255, 75, 75, 0.18)",
+                borderRight: "1px dashed rgba(255, 75, 75, 0.18)",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "6px 0",
+                boxSizing: "border-box"
+              }}>
+                <span style={{ fontSize: 9, fontFamily: fMono, color: "#ff4d4d", background: "rgba(20, 10, 10, 0.88)", padding: "2px 5px", borderRadius: 4, border: "1px solid rgba(255, 75, 75, 0.3)", fontWeight: "bold" }}>C{i + 1}</span>
+                <span style={{ fontSize: 9, fontFamily: fMono, color: "#ff4d4d", background: "rgba(20, 10, 10, 0.88)", padding: "2px 5px", borderRadius: 4, border: "1px solid rgba(255, 75, 75, 0.3)", fontWeight: "bold" }}>C{i + 1}</span>
+              </div>
+            ))}
+          </div>
+          {/* 水平等分橫線 (8 Row) */}
+          <div style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
+            padding: "0",
+            boxSizing: "border-box"
+          }}>
+            {Array.from({ length: 9 }).map((_, i) => (
+              <div key={i} style={{
+                width: "100%",
+                height: 0,
+                borderBottom: i === 0 || i === 8 ? "none" : "1px dashed rgba(255, 75, 75, 0.13)",
+                position: "relative"
+              }}>
+                {i > 0 && i < 8 && (
+                  <span style={{
+                    position: "absolute",
+                    left: 4,
+                    top: -8,
+                    fontSize: 9,
+                    fontFamily: fMono,
+                    color: "#ff4d4d",
+                    background: "rgba(20, 10, 10, 0.88)",
+                    padding: "1px 5px",
+                    borderRadius: 4,
+                    border: "1px solid rgba(255, 75, 75, 0.3)",
+                    fontWeight: "bold"
+                  }}>R{i}</span>
+                )}
+              </div>
+            ))}
+          </div>
+          {/* Sidebar 分界標記線 (220px) */}
+          <div style={{
+            position: "absolute",
+            left: 220,
+            top: 0,
+            bottom: 0,
+            borderLeft: "2px solid rgba(0, 180, 255, 0.35)",
+            zIndex: 1
+          }}>
+            <span style={{
+              position: "absolute",
+              top: 6,
+              left: 6,
+              fontSize: 9,
+              fontFamily: fMono,
+              color: "#00b4ff",
+              background: "rgba(0, 20, 40, 0.88)",
+              padding: "2px 6px",
+              borderRadius: 4,
+              border: "1px solid rgba(0, 180, 255, 0.35)",
+              fontWeight: "bold",
+              whiteSpace: "nowrap"
+            }}>Sidebar 220px</span>
+          </div>
+        </div>
+      )}
+
       {/* 側邊導覽欄 (AVer WebUI Sidebar Template) */}
       <div id="aver-sidebar-container" style={{ width: 220, background: T.side, flexShrink: 0, paddingTop: 20, display: "flex", flexDirection: "column", height: "100vh", boxSizing: "border-box", overflowY: "auto" }}>
         <div style={{ padding: "4px 24px 20px", fontWeight: 700, fontSize: 22, fontStyle: "italic", letterSpacing: 0.5, color: "#fff" }}>AVer</div>
@@ -3384,6 +3447,7 @@ export default function App() {
 
       {/* 主工作區 (Main Stage Panel) */}
       <div id="aver-main-stage" style={{ position: "relative", flex: 1, padding: "16px 24px", minWidth: 0, background: T.page, overflow: "hidden", height: "100vh", display: "flex", flexDirection: "column", boxSizing: "border-box" }}>
+
         {activeMenu === "paint" ? (
           <div id="aver-content-wrapper" key="paint" className="aver-fade" style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%", maxWidth: "1350px", margin: "0 auto", height: "100%", minHeight: 0 }}>
 
