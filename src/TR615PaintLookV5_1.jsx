@@ -1232,9 +1232,9 @@ export default function App() {
   const handlePtz = (action) => {
     setPtz((p) => {
       const BASE_SCALE = 1.65; // 提升為 1.65 倍，大幅提供相機鏡頭向四周轉動的視野空間，且依然完美限幅防黑邊
-      let nextZoom = p.zoom;
-      if (action === "zoom_in") nextZoom = Math.min(p.zoom + 0.15, 3.0);
-      if (action === "zoom_out") nextZoom = Math.max(p.zoom - 0.15, 1.0);
+      let nextZoom = p.zoom || 1.0;
+      if (action === "zoom_in") nextZoom = Math.min(nextZoom + 0.15, 3.0);
+      if (action === "zoom_out") nextZoom = Math.max(nextZoom - 0.15, 1.0);
       if (action === "home") nextZoom = 1.0;
 
       const S = BASE_SCALE * nextZoom;
@@ -1242,17 +1242,19 @@ export default function App() {
       const maxPanPercent = ((S - 1) / 2) * 100;
       const maxTiltPercent = ((S - 1) / 2) * 100;
 
-      let nextPan = p.pan;
-      let nextTilt = p.tilt;
+      let nextPan = p.pan || 0;
+      let nextTilt = p.tilt || 0;
       
-      // 結合實機 UI 中的 Pan Speed 與 Tilt Speed 進行步長計算 (預設值 7)
-      const panStep = (live.panSpeed / 7.0) * (4.5 / nextZoom);
-      const tiltStep = (live.tiltSpeed / 7.0) * (4.5 / nextZoom);
+      // 安全獲取速度參數，避免 live 未定義或屬性為空時出錯
+      const panSpeed = (live && live.panSpeed !== undefined) ? live.panSpeed : 7;
+      const tiltSpeed = (live && live.tiltSpeed !== undefined) ? live.tiltSpeed : 7;
+      const panStep = (panSpeed / 7.0) * (4.5 / nextZoom);
+      const tiltStep = (tiltSpeed / 7.0) * (4.5 / nextZoom);
 
-      if (action === "up") nextTilt = p.tilt + tiltStep;
-      if (action === "down") nextTilt = p.tilt - tiltStep;
-      if (action === "left") nextPan = p.pan + panStep;
-      if (action === "right") nextPan = p.pan - panStep;
+      if (action === "up") nextTilt = nextTilt + tiltStep;
+      if (action === "down") nextTilt = nextTilt - tiltStep;
+      if (action === "left") nextPan = nextPan + panStep;
+      if (action === "right") nextPan = nextPan - panStep;
       if (action === "home") {
         nextPan = 0;
         nextTilt = 0;
@@ -1261,6 +1263,11 @@ export default function App() {
       // 限幅邊界約束
       nextPan = Math.max(Math.min(nextPan, maxPanPercent), -maxPanPercent);
       nextTilt = Math.max(Math.min(nextTilt, maxTiltPercent), -maxTiltPercent);
+
+      // 強力防呆：避免任何 NaN 導致狀態崩潰鎖死
+      if (isNaN(nextPan)) nextPan = 0;
+      if (isNaN(nextTilt)) nextTilt = 0;
+      if (isNaN(nextZoom)) nextZoom = 1.0;
 
       return { pan: nextPan, tilt: nextTilt, zoom: nextZoom };
     });
