@@ -2724,7 +2724,7 @@ export default function App() {
                 <Toggle on={st.autoKnee} onChange={(v) => upd("autoKnee", v)} label="Auto Knee" />
               </div>
               
-              <Slider k="kneePoint" label="Point" hint="" min={75} max={105} val={st.kneePoint} onChange={(v) => upd("kneePoint", v)} neutral={95} onStartDrag={startDrag} onEndDrag={endDrag} disabled={st.autoKnee} />
+              <Slider k="kneePoint" label="Point" hint="" min={75} max={105} val={st.kneePoint} onChange={(v) => upd("kneePoint", v)} neutral={95} onStartDrag={startDrag} onEndDrag={endDrag} disabled={false} />
               <Slider k="kneeSlope" label="Slope" hint="" min={-5} max={5} val={st.kneeSlope} onChange={(v) => upd("kneeSlope", v)} onStartDrag={startDrag} onEndDrag={endDrag} disabled={st.autoKnee} />
             </div>
           </div>
