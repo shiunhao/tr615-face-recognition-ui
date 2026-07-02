@@ -348,7 +348,7 @@ const DEF = {
   matrixOn: false, level: 0, phase: 0, rg: 0, rb: 0, gr: 0, gb: 0, br: 0, bg: 0,
   multiOn: false, axes: DEF_AXES(),
   detailOn: false, detail: 0,
-  kneeOn: false, autoKnee: false, kneeSens: "Mid", kneePoint: 95, kneeSlope: 0,
+  kneeOn: false, autoKnee: false, kneeSens: "Mid", kneePoint: 95, kneeSlope: 0, prevKneeSlope: 0,
   black: 0, blackGamma: 0,
 };
 
@@ -2721,7 +2721,19 @@ export default function App() {
               gap: 12
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 6 }}>
-                <Toggle on={st.autoKnee} onChange={(v) => upd("autoKnee", v)} label="Auto Knee" />
+                <Toggle 
+                  on={st.autoKnee} 
+                  onChange={(v) => {
+                    setSt((s) => {
+                      if (v) {
+                        return { ...s, autoKnee: true, prevKneeSlope: s.kneeSlope, kneeSlope: 0 };
+                      } else {
+                        return { ...s, autoKnee: false, kneeSlope: s.prevKneeSlope !== undefined ? s.prevKneeSlope : 0 };
+                      }
+                    });
+                  }} 
+                  label="Auto Knee" 
+                />
               </div>
               
               <Slider k="kneePoint" label="Point" hint="" min={75} max={105} val={st.kneePoint} onChange={(v) => upd("kneePoint", v)} neutral={95} onStartDrag={startDrag} onEndDrag={endDrag} disabled={false} />
