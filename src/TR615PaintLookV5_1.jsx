@@ -3619,7 +3619,7 @@ export default function App() {
               return (
                 <>
                   {/* 預覽畫面外層 container: 填滿剩餘高度與寬度 */}
-                  <div style={{ position: "relative", borderRadius: 10, overflow: "hidden", border: `1px solid ${T.line}`, width: "100%", flex: 1, minHeight: 0, background: "#000", display: "flex", alignItems: "center", justifyContent: "center", boxSizing: "border-box" }}>
+                  <div id="aver-live-preview-panel" style={{ position: "relative", borderRadius: 10, overflow: "hidden", border: `1px solid ${T.line}`, width: "100%", flex: 1, minHeight: 0, background: "#000", display: "flex", alignItems: "center", justifyContent: "center", boxSizing: "border-box" }}>
                     {/* 內層 16:9 預覽區：高度 100% 填滿，寬度依 16:9 比例自適應，於左右留下黑邊 */}
                     <div style={{ position: "relative", height: "100%", width: "auto", aspectRatio: "16 / 9", overflow: "hidden" }}>
                       <div style={{ 
@@ -3648,7 +3648,7 @@ export default function App() {
 
                     {live.tab === "control" ? (
                       /* ===== Camera Control ===== */
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, padding: "12px 16px", alignItems: "stretch", flex: 1, minHeight: 0, overflow: "hidden", boxSizing: "border-box", alignContent: "stretch" }}>
+                      <div id="aver-live-camera-control-subpanel" style={{ display: "flex", flexWrap: "wrap", gap: 12, padding: "12px 16px", alignItems: "stretch", flex: 1, minHeight: 0, overflow: "hidden", boxSizing: "border-box", alignContent: "stretch" }}>
                         {/* 方向盤 + Zoom */}
                         <div style={{ ...sec, display: "flex", gap: 14, alignItems: "center" }}>
                           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 42px)", gridTemplateRows: "repeat(3, 42px)", gap: 5 }}>
@@ -3726,7 +3726,7 @@ export default function App() {
                       </div>
                     ) : (
                       /* ===== Preset(預設位置)===== */
-                      <div style={{ padding: "12px 16px", flex: 1, minHeight: 0, overflow: "hidden", boxSizing: "border-box" }}>
+                      <div id="aver-live-preset-subpanel" style={{ padding: "12px 16px", flex: 1, minHeight: 0, overflow: "hidden", boxSizing: "border-box" }}>
                         <div style={{ fontSize: 13, color: T.dim, marginBottom: 12 }}>Click preset to call; long press or click "Set" to save current PTZ/Focus status to the preset.</div>
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
                           {Array.from({ length: 9 }, (_, i) => i + 1).map((n) => (
@@ -3759,7 +3759,7 @@ export default function App() {
               return (
                 <>
                   {/* 預覽畫面外層 container: 填滿剩餘高度與寬度 */}
-                  <div style={{ position: "relative", borderRadius: 10, overflow: "hidden", border: `1px solid ${T.line}`, width: "100%", flex: 1, minHeight: 0, background: "#000", display: "flex", alignItems: "center", justifyContent: "center", boxSizing: "border-box" }}>
+                  <div id="aver-cam-preview-panel" style={{ position: "relative", borderRadius: 10, overflow: "hidden", border: `1px solid ${T.line}`, width: "100%", flex: 1, minHeight: 0, background: "#000", display: "flex", alignItems: "center", justifyContent: "center", boxSizing: "border-box" }}>
                     {/* 內層 16:9 預覽區：高度 100% 填滿，寬度依 16:9 比例自適應，於左右留下黑邊 */}
                     <div style={{ position: "relative", height: "100%", width: "auto", aspectRatio: "16 / 9", overflow: "hidden" }}>
                       <div
@@ -3792,7 +3792,7 @@ export default function App() {
 
                     {cam.tab === "exp" ? (
                       /* ===== Exposure 分頁 ===== */
-                      <div style={{ display: "flex", gap: 0, padding: "10px 16px", alignItems: "flex-start", flex: 1, minHeight: 0, overflow: "hidden", boxSizing: "border-box" }}>
+                      <div id="aver-cam-exposure-subpanel" style={{ display: "flex", gap: 0, padding: "10px 16px", alignItems: "flex-start", flex: 1, minHeight: 0, overflow: "hidden", boxSizing: "border-box" }}>
                         {/* 模式清單 */}
                         <div style={{ flex: "0 0 140px", display: "flex", flexDirection: "column", gap: 4, padding: "0 14px 0 0", borderRight: `1px solid ${T.line}`, alignSelf: "stretch" }}>
                           {EXP_MODES.map(([id, lb]) => (
@@ -3876,7 +3876,7 @@ export default function App() {
                       </div>
                     ) : (
                       /* ===== Image Process 分頁(對照實機) ===== */
-                      <div style={{ display: "flex", gap: 0, padding: "10px 16px", alignItems: "flex-start", flex: 1, minHeight: 0, overflow: "hidden", boxSizing: "border-box" }}>
+                      <div id="aver-cam-image-process-subpanel" style={{ display: "flex", gap: 0, padding: "10px 16px", alignItems: "flex-start", flex: 1, minHeight: 0, overflow: "hidden", boxSizing: "border-box" }}>
                         {/* 第 1 欄:White Balance + R/B Gain + One Push */}
                         <div style={{ flex: 1, minWidth: 0, padding: "0 14px 0 10px", borderRight: `1px solid ${T.line}`, display: "flex", flexDirection: "column", gap: 8 }}>
                           <div style={{
@@ -4517,7 +4517,7 @@ export default function App() {
               <div id="aver-tracking-wrapper" key="tracking" className="aver-fade" style={{ width: "100%", maxWidth: "1350px", margin: "0 auto", height: "100%", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 14, minHeight: 0, overflow: "hidden" }}>
                 {/* 上方:預覽 + 方向盤/Zoom + Save to Preset */}
                 <div style={{ display: "flex", gap: 14, alignItems: "stretch", flex: 1, minHeight: 0 }}>
-                  <div style={{ flex: 1, position: "relative", borderRadius: 10, overflow: "hidden", border: `1px solid ${T.line}`, background: "#000", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 0 }}>
+                  <div id="aver-trk-preview-panel" style={{ flex: 1, position: "relative", borderRadius: 10, overflow: "hidden", border: `1px solid ${T.line}`, background: "#000", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 0 }}>
                     <div style={{ position: "relative", height: "100%", width: "auto", aspectRatio: "16 / 9", overflow: "hidden" }}>
                       <div style={{ 
                         position: "absolute", 
