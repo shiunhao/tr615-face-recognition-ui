@@ -4548,7 +4548,7 @@ export default function App() {
                 </div>
 
                 {/* Tab 列 + 內容(版面同 Camera Settings:邊框面板 + 固定寬藍底分頁 + 分隔線) */}
-                <div style={{ background: T.panel, border: `1px solid ${T.line}`, borderRadius: 10, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                <div id="aver-trk-control-panel" style={{ background: T.panel, border: `1px solid ${T.line}`, borderRadius: 10, flex: "0 0 300px", height: 300, display: "flex", flexDirection: "column", overflow: "hidden" }}>
                   {/* 分頁列 */}
                   <div style={{ display: "flex", borderBottom: `1px solid ${T.line}` }}>
                     {TRK_TABS.map(([id, lb]) => (
@@ -4560,7 +4560,7 @@ export default function App() {
                   </div>
 
                   {/* 分頁內容 */}
-                  <div style={{ padding: 16 }}>
+                  <div style={{ padding: "12px 16px", flex: 1, overflowY: "auto", minHeight: 0 }}>
                 {trk.tab === "presenter" ? (
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, alignItems: "start" }}>
                     {/* 第 1 欄 */}
