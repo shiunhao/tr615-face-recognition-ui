@@ -4514,10 +4514,10 @@ export default function App() {
             const desc = { fontSize: 11.5, color: T.faint, lineHeight: 1.55 };
             const arrowBtn = { width: 44, height: 44, borderRadius: 8, border: `1px solid ${T.line2}`, background: "#101216", color: T.text, fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" };
             return (
-              <div id="aver-tracking-wrapper" key="tracking" className="aver-fade" style={{ width: "100%", maxWidth: "1350px", margin: "0 auto", height: "100%", overflowY: "auto", paddingRight: 8, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 14 }}>
+              <div id="aver-tracking-wrapper" key="tracking" className="aver-fade" style={{ width: "100%", maxWidth: "1350px", margin: "0 auto", height: "100%", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 14, minHeight: 0, overflow: "hidden" }}>
                 {/* 上方:預覽 + 方向盤/Zoom + Save to Preset */}
-                <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-                  <div style={{ flex: 1, position: "relative", borderRadius: 10, overflow: "hidden", border: `1px solid ${T.line}`, background: "#000", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 0, aspectRatio: "16 / 9" }}>
+                <div style={{ display: "flex", gap: 14, alignItems: "stretch", flex: 1, minHeight: 0 }}>
+                  <div style={{ flex: 1, position: "relative", borderRadius: 10, overflow: "hidden", border: `1px solid ${T.line}`, background: "#000", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 0 }}>
                     <div style={{ position: "relative", height: "100%", width: "auto", aspectRatio: "16 / 9", overflow: "hidden" }}>
                       <div style={{ 
                         position: "absolute", 
@@ -4548,7 +4548,7 @@ export default function App() {
                 </div>
 
                 {/* Tab 列 + 內容(版面同 Camera Settings:邊框面板 + 固定寬藍底分頁 + 分隔線) */}
-                <div id="aver-trk-control-panel" style={{ background: T.panel, border: `1px solid ${T.line}`, borderRadius: 10, flex: "0 0 300px", height: 300, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                <div id="aver-trk-control-panel" style={{ background: T.panel, border: `1px solid ${T.line}`, borderRadius: 10, flex: "0 0 360px", height: 360, display: "flex", flexDirection: "column", overflow: "hidden" }}>
                   {/* 分頁列 */}
                   <div style={{ display: "flex", borderBottom: `1px solid ${T.line}` }}>
                     {TRK_TABS.map(([id, lb]) => (
@@ -4560,7 +4560,7 @@ export default function App() {
                   </div>
 
                   {/* 分頁內容 */}
-                  <div style={{ padding: "12px 16px", flex: 1, overflowY: "auto", minHeight: 0 }}>
+                  <div style={{ padding: "16px 20px" }}>
                 {trk.tab === "presenter" ? (
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, alignItems: "start" }}>
                     {/* 第 1 欄 */}
