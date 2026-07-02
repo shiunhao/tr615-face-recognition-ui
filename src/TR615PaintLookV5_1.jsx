@@ -3615,7 +3615,7 @@ export default function App() {
                       <div style={{ 
                         position: "absolute", 
                         inset: 0, 
-                        backgroundImage: "url(meeting_room.png)", 
+                        backgroundImage: "url(meeting_room.png?v=3)", 
                         backgroundSize: "100% 100%", 
                         backgroundPosition: "center",
                         transform: `translate(${ptz.pan}%, ${ptz.tilt}%) scale(${ptz.zoom * 1.65})`,
@@ -3756,7 +3756,7 @@ export default function App() {
                         style={{
                           position: "absolute",
                           inset: 0,
-                          backgroundImage: "url(meeting_room.png)",
+                          backgroundImage: "url(meeting_room.png?v=3)",
                           backgroundSize: "100% 100%",
                           backgroundPosition: "center",
                           filter: previewFilter,
@@ -4511,7 +4511,7 @@ export default function App() {
                     <div style={{ 
                       position: "absolute", 
                       inset: 0, 
-                      backgroundImage: "url(meeting_room.png)", 
+                      backgroundImage: "url(meeting_room.png?v=3)", 
                       backgroundSize: "100% 100%", 
                       backgroundPosition: "center",
                       transform: `translate(${ptz.pan}%, ${ptz.tilt}%) scale(${ptz.zoom * 1.65})`,
