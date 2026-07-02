@@ -2790,7 +2790,9 @@ export default function App() {
   // ---- Paint/Look 可重用片段(經典 / 劇院 兩種版面共用,避免重複)----
   const paintMonitor = () => (
     <div style={{ position: "relative", borderRadius: 10, overflow: "hidden", border: `1px solid ${T.line}`, background: "#000", flex: 1, minHeight: 0, width: "100%", boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <canvas ref={preRef} width={SW} height={SH} style={{ width: "100%", height: "100%", display: "block", objectFit: "contain" }} />
+      <div style={{ position: "relative", height: "100%", width: "auto", aspectRatio: "16 / 9", overflow: "hidden" }}>
+        <canvas ref={preRef} width={SW} height={SH} style={{ width: "100%", height: "100%", display: "block" }} />
+      </div>
       <div style={{ position: "absolute", right: 12, top: 10, display: "flex", gap: 8, zIndex: 20 }}>
         <button onMouseDown={() => setBypass(true)} onMouseUp={() => setBypass(false)} onMouseLeave={() => setBypass(false)} onTouchStart={() => setBypass(true)} onTouchEnd={() => setBypass(false)}
           style={{ width: 132, padding: "4px 0", textAlign: "center", fontSize: 14, cursor: "pointer", borderRadius: 5, border: bypass ? `1px solid ${T.blue}` : "1px solid rgba(255,255,255,0.25)", background: bypass ? "rgba(30,155,240,0.85)" : "rgba(22,24,27,0.65)", color: bypass ? "#fff" : "rgba(255,255,255,0.9)", fontFamily: fUI, backdropFilter: "blur(4px)", transition: "all .15s" }}>
@@ -3333,9 +3335,10 @@ export default function App() {
               {/* 左半部：影像預覽畫布與多模示波器 */}
               <div id="aver-preview-monitor-block" style={{ flex: 1, minWidth: 320, display: "flex", flexDirection: "column", minHeight: 0 }}>
                 <div id="aver-canvas-preview-container" style={{ position: "relative", borderRadius: 8, overflow: "hidden", border: `1px solid ${T.line}`, background: "#000", flex: 1, minHeight: 0, width: "100%", boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  
-                  {/* 主要畫面 Canvas — 已修正為 React 物理屬性防抖動架構 */}
-                  <canvas ref={preRef} width={SW} height={SH} style={{ width: "100%", height: "100%", display: "block", objectFit: "contain" }} />
+                  <div style={{ position: "relative", height: "100%", width: "auto", aspectRatio: "16 / 9", overflow: "hidden" }}>
+                    {/* 主要畫面 Canvas — 已修正為 React 物理屬性防抖動架構 */}
+                    <canvas ref={preRef} width={SW} height={SH} style={{ width: "100%", height: "100%", display: "block" }} />
+                  </div>
                   
                   {/* Hold for Original按鈕 */}
                   <div style={{ position: "absolute", right: 12, top: 10, display: "flex", gap: 8, zIndex: 20 }}>
@@ -4514,16 +4517,18 @@ export default function App() {
               <div id="aver-tracking-wrapper" key="tracking" className="aver-fade" style={{ width: "100%", maxWidth: "1350px", margin: "0 auto", height: "100%", overflowY: "auto", paddingRight: 8, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 14 }}>
                 {/* 上方:預覽 + 方向盤/Zoom + Save to Preset */}
                 <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-                  <div style={{ flex: 1, position: "relative", borderRadius: 10, overflow: "hidden", border: `1px solid ${T.line}`, aspectRatio: "16 / 9", background: "linear-gradient(160deg,#11151b,#05070a)", minHeight: 0 }}>
-                    <div style={{ 
-                      position: "absolute", 
-                      inset: 0, 
-                      backgroundImage: "url(meeting_room.png?v=3)", 
-                      backgroundSize: "100% 100%", 
-                      backgroundPosition: "center",
-                      transform: `translate(${ptz.pan}%, ${ptz.tilt}%) scale(${ptz.zoom * 1.65})`,
-                      transition: "transform 0.25s cubic-bezier(0.1, 0.8, 0.2, 1)"
-                    }} />
+                  <div style={{ flex: 1, position: "relative", borderRadius: 10, overflow: "hidden", border: `1px solid ${T.line}`, background: "#000", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 0, aspectRatio: "16 / 9" }}>
+                    <div style={{ position: "relative", height: "100%", width: "auto", aspectRatio: "16 / 9", overflow: "hidden" }}>
+                      <div style={{ 
+                        position: "absolute", 
+                        inset: 0, 
+                        backgroundImage: "url(meeting_room.png?v=3)", 
+                        backgroundSize: "100% 100%", 
+                        backgroundPosition: "center",
+                        transform: `translate(${ptz.pan}%, ${ptz.tilt}%) scale(${ptz.zoom * 1.65})`,
+                        transition: "transform 0.25s cubic-bezier(0.1, 0.8, 0.2, 1)"
+                      }} />
+                    </div>
                   </div>
                   <div style={{ flexShrink: 0, alignSelf: "flex-start", display: "flex", flexDirection: "column", gap: 10, background: T.panel, border: `1px solid ${T.line}`, borderRadius: 10, padding: 16 }}>
                     <div style={{ display: "flex", gap: 14 }}>
