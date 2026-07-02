@@ -3616,7 +3616,7 @@ export default function App() {
                         position: "absolute", 
                         inset: 0, 
                         backgroundImage: "url(meeting_room.png)", 
-                        backgroundSize: "cover", 
+                        backgroundSize: "100% 100%", 
                         backgroundPosition: "center",
                         transform: `translate(${ptz.pan}%, ${ptz.tilt}%) scale(${ptz.zoom * 1.65})`,
                         transition: "transform 0.25s cubic-bezier(0.1, 0.8, 0.2, 1)"
@@ -3757,7 +3757,7 @@ export default function App() {
                           position: "absolute",
                           inset: 0,
                           backgroundImage: "url(meeting_room.png)",
-                          backgroundSize: "cover",
+                          backgroundSize: "100% 100%",
                           backgroundPosition: "center",
                           filter: previewFilter,
                           transform: `${cam.mirror ? "scaleX(-1)" : ""} ${cam.flip ? "scaleY(-1)" : ""}`,
@@ -4512,7 +4512,7 @@ export default function App() {
                       position: "absolute", 
                       inset: 0, 
                       backgroundImage: "url(meeting_room.png)", 
-                      backgroundSize: "cover", 
+                      backgroundSize: "100% 100%", 
                       backgroundPosition: "center",
                       transform: `translate(${ptz.pan}%, ${ptz.tilt}%) scale(${ptz.zoom * 1.65})`,
                       transition: "transform 0.25s cubic-bezier(0.1, 0.8, 0.2, 1)"
