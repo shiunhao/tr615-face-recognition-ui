@@ -3018,6 +3018,42 @@ export default function App() {
 
   return (
     <div id="aver-paint-look-root" style={{ position: "relative", background: T.page, width: "100%", height: "100vh", fontFamily: fUI, color: T.text, display: "flex", overflow: "hidden" }}>
+      
+      {/* 全畫面 12-Column Grid 輔助線 Overlay */}
+      {showGrid && (
+        <div style={{
+          position: "fixed",
+          left: 0,
+          right: 0,
+          top: 0,
+          bottom: 0,
+          pointerEvents: "none",
+          zIndex: 99999,
+          display: "grid",
+          gridTemplateColumns: "repeat(12, 1fr)",
+          columnGap: "14px",
+          padding: "0 16px",
+          boxSizing: "border-box"
+        }}>
+          {Array.from({ length: 12 }).map((_, i) => (
+            <div key={i} style={{
+              background: "rgba(255, 75, 75, 0.03)",
+              borderLeft: "1px dashed rgba(255, 75, 75, 0.18)",
+              borderRight: "1px dashed rgba(255, 75, 75, 0.18)",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "24px 0",
+              boxSizing: "border-box"
+            }}>
+              <span style={{ fontSize: 9, fontFamily: fMono, color: "#ff4d4d", background: "rgba(20, 10, 10, 0.9)", padding: "2px 6px", borderRadius: 4, border: "1px solid rgba(255, 75, 75, 0.3)", fontWeight: "bold" }}>C{i + 1}</span>
+              <span style={{ fontSize: 9, fontFamily: fMono, color: "#ff4d4d", background: "rgba(20, 10, 10, 0.9)", padding: "2px 6px", borderRadius: 4, border: "1px solid rgba(255, 75, 75, 0.3)", fontWeight: "bold" }}>C{i + 1}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* 注入控制滑桿樣式與色環旋轉動畫 */}
       <style>{`
         /* 縮放 125% 與低高度螢幕適配滾動 */
@@ -3348,45 +3384,6 @@ export default function App() {
 
       {/* 主工作區 (Main Stage Panel) */}
       <div id="aver-main-stage" style={{ position: "relative", flex: 1, padding: "16px 24px", minWidth: 0, background: T.page, overflow: "hidden", height: "100vh", display: "flex", flexDirection: "column", boxSizing: "border-box" }}>
-        
-        {/* Grid 系統 12 欄輔助線 Overlay */}
-        {showGrid && (
-          <div style={{
-            position: "absolute",
-            left: "24px",
-            right: "24px",
-            top: "16px",
-            bottom: "16px",
-            maxWidth: "1350px",
-            width: "calc(100% - 48px)",
-            margin: "0 auto",
-            pointerEvents: "none",
-            zIndex: 9999,
-            display: "grid",
-            gridTemplateColumns: "repeat(12, 1fr)",
-            columnGap: "10px",
-            height: "calc(100% - 32px)",
-            boxSizing: "border-box"
-          }}>
-            {Array.from({ length: 12 }).map((_, i) => (
-              <div key={i} style={{
-                background: "rgba(255, 75, 75, 0.04)",
-                borderLeft: "1px dashed rgba(255, 75, 75, 0.22)",
-                borderRight: "1px dashed rgba(255, 75, 75, 0.22)",
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "8px 0",
-                boxSizing: "border-box"
-              }}>
-                <span style={{ fontSize: 9, fontFamily: fMono, color: "#ff4d4d", background: "rgba(20, 10, 10, 0.85)", padding: "2px 5px", borderRadius: 4, border: "1px solid rgba(255, 75, 75, 0.3)", fontWeight: "bold" }}>C{i + 1}</span>
-                <span style={{ fontSize: 9, fontFamily: fMono, color: "#ff4d4d", background: "rgba(20, 10, 10, 0.85)", padding: "2px 5px", borderRadius: 4, border: "1px solid rgba(255, 75, 75, 0.3)", fontWeight: "bold" }}>C{i + 1}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
         {activeMenu === "paint" ? (
           <div id="aver-content-wrapper" key="paint" className="aver-fade" style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%", maxWidth: "1350px", margin: "0 auto", height: "100%", minHeight: 0 }}>
 
