@@ -162,10 +162,9 @@ function applyMulti(R, G, B, axes) {
  * - Knee Point & Slope (高光壓縮): 針對高光部分做壓縮以保留過曝層次
  */
 function applyTone(R, G, B, p) {
-  // Black level 提升暗部基準 (影響全圖，但偏向暗部)
-  const bl = p.black / 50 * 0.12;
-  // Black Gamma 提升或壓低極暗部細節與對比
-  const bg = (p.blackGamma || 0) / 50 * 0.08;
+  const bl_m = (p.masterBlack || 0) / 50 * 0.12;
+  const bl_r = (p.rBlack || 0) / 50 * 0.12;
+  const bl_b = (p.bBlack || 0) / 50 * 0.12;
 
   // 決定 Auto Knee 或手動 Knee 的 Point 和 Slope 參數
   let kp, slope;
@@ -177,19 +176,23 @@ function applyTone(R, G, B, p) {
     slope = 0.5 + (p.kneeSlope + 5) / 20;
   }
 
-  const f = (v) => {
-    // 套用黑位補償
-    v = v + bl * (1 - v);
-    // 套用 Black Gamma 暗部伽馬調整
-    v = v + bg * Math.pow(1 - v, 3.5);
-    // 套用高光壓縮曲線
-    if (v > kp) {
-      v = kp + (v - kp) * slope;
-    }
+  const f_r = (v) => {
+    v = v + (bl_m + bl_r) * (1 - v);
+    if (v > kp) v = kp + (v - kp) * slope;
+    return v;
+  };
+  const f_g = (v) => {
+    v = v + bl_m * (1 - v);
+    if (v > kp) v = kp + (v - kp) * slope;
+    return v;
+  };
+  const f_b = (v) => {
+    v = v + (bl_m + bl_b) * (1 - v);
+    if (v > kp) v = kp + (v - kp) * slope;
     return v;
   };
 
-  return [f(R), f(G), f(B)];
+  return [f_r(R), f_g(G), f_b(B)];
 }
 
 /**
@@ -349,7 +352,8 @@ const DEF = {
   multiOn: false, axes: DEF_AXES(),
   detailOn: false, detail: 0,
   kneeOn: false, autoKnee: false, kneeSens: "Mid", kneePoint: 95, kneeSlope: 0, prevKneeSlope: 0,
-  black: 0, blackGamma: 0,
+  masterBlack: 0, rBlack: 0, bBlack: 0,
+  black: 0, blackGamma: 0, // 保留舊屬性防止部分存檔狀態讀取異常
 };
 
 // ============================================================================
@@ -792,7 +796,7 @@ function summarize(d) {
     <>
       <div>Matrix {d.matrixOn ? "ON" : "OFF"} · LVL{d.level >= 0 ? "+" : ""}{d.level} PH{d.phase >= 0 ? "+" : ""}{d.phase}</div>
       <div>RG{d.rg >= 0 ? "+" : ""}{d.rg} RB{d.rb >= 0 ? "+" : ""}{d.rb} GR{d.gr >= 0 ? "+" : ""}{d.gr} GB{d.gb >= 0 ? "+" : ""}{d.gb} BR{d.br >= 0 ? "+" : ""}{d.br} BG{d.bg >= 0 ? "+" : ""}{d.bg}</div>
-      <div>Multi {d.multiOn ? "ON" : "OFF"} · Detail {d.detailOn ? (d.detail >= 0 ? "+" : "") + d.detail : "OFF"} · Knee {d.kneeOn ? (d.autoKnee ? "AUTO" : `P${d.kneePoint}/S${d.kneeSlope >= 0 ? "+" : ""}${d.kneeSlope}`) : "OFF"} · BLK{d.black >= 0 ? "+" : ""}{d.black}</div>
+      <div>Multi {d.multiOn ? "ON" : "OFF"} · Detail {d.detailOn ? (d.detail >= 0 ? "+" : "") + d.detail : "OFF"} · Knee {d.kneeOn ? (d.autoKnee ? "AUTO" : `P${d.kneePoint}/S${d.kneeSlope >= 0 ? "+" : ""}${d.kneeSlope}`) : "OFF"} · BLK(M{d.masterBlack >= 0 ? "+" : ""}{d.masterBlack}/R{d.rBlack >= 0 ? "+" : ""}{d.rBlack}/B{d.bBlack >= 0 ? "+" : ""}{d.bBlack})</div>
     </>
   );
 }
@@ -1648,8 +1652,9 @@ export default function App() {
     // --- 預先計算演算法常數，避免在像素大迴圈中重複計算或建立閉包 ---
     
     // 1. Tone 常數
-    const bl = activeSt.black / 50 * 0.12;
-    const bg = (activeSt.blackGamma || 0) / 50 * 0.08;
+    const bl_m = (activeSt.masterBlack || 0) / 50 * 0.12;
+    const bl_r = (activeSt.rBlack || 0) / 50 * 0.12;
+    const bl_b = (activeSt.bBlack || 0) / 50 * 0.12;
     const kneeOn = true;
     let kp, slope;
     if (activeSt.autoKnee) {
@@ -1718,15 +1723,10 @@ export default function App() {
       let G = sd[i + 1] / 255;
       let B = sd[i + 2] / 255;
       
-      // A. 套用 Tone 控制
-      R = R + bl * (1 - R);
-      G = G + bl * (1 - G);
-      B = B + bl * (1 - B);
-      
-      // 套用 Black Gamma 暗部調整
-      R = R + bg * Math.pow(1 - R, 3.5);
-      G = G + bg * Math.pow(1 - G, 3.5);
-      B = B + bg * Math.pow(1 - B, 3.5);
+      // A. 套用 Tone 控制 (使用新的 Master / Red / Blue Black Level)
+      R = R + (bl_m + bl_r) * (1 - R);
+      G = G + bl_m * (1 - G);
+      B = B + (bl_m + bl_b) * (1 - B);
       if (kneeOn) {
         if (R > kp) R = kp + (R - kp) * slope;
         if (G > kp) G = kp + (G - kp) * slope;
@@ -1962,7 +1962,7 @@ export default function App() {
     if (id === "multi") return AXIS16.some((a) => st.axes[a].hue || st.axes[a].sat);
     if (id === "detail") return st.detail !== 0;
     if (id === "knee") return st.autoKnee || st.kneePoint !== 95 || st.kneeSlope !== 0;
-    if (id === "black") return st.black !== 0;
+    if (id === "black") return !!(st.masterBlack || st.rBlack || st.bBlack);
     return false;
   };
 
@@ -2751,7 +2751,7 @@ export default function App() {
             title="Black Level" 
             right={
               <div style={{ width: 80, display: "flex" }}>
-                <MiniBtn onClick={() => setSt((s) => ({ ...s, black: 0, blackGamma: 0 }))}>Default</MiniBtn>
+                <MiniBtn onClick={() => setSt((s) => ({ ...s, masterBlack: 0, rBlack: 0, bBlack: 0 }))}>Default</MiniBtn>
               </div>
             }
           />
@@ -2768,8 +2768,9 @@ export default function App() {
               flexDirection: "column",
               gap: 12
             }}>
-              <Slider k="black" label="Level" hint="" min={-50} max={50} val={st.black} onChange={(v) => upd("black", v)} onStartDrag={startDrag} onEndDrag={endDrag} />
-              <Slider k="blackGamma" label="Black Gamma" hint="" min={-50} max={50} val={st.blackGamma} onChange={(v) => upd("blackGamma", v)} onStartDrag={startDrag} onEndDrag={endDrag} />
+              <Slider k="masterBlack" label="master black" hint="" min={-50} max={50} val={st.masterBlack} onChange={(v) => upd("masterBlack", v)} onStartDrag={startDrag} onEndDrag={endDrag} />
+              <Slider k="rBlack" label="r black" hint="" min={-50} max={50} val={st.rBlack} onChange={(v) => upd("rBlack", v)} onStartDrag={startDrag} onEndDrag={endDrag} />
+              <Slider k="bBlack" label="b black" hint="" min={-50} max={50} val={st.bBlack} onChange={(v) => upd("bBlack", v)} onStartDrag={startDrag} onEndDrag={endDrag} />
             </div>
           </div>
         </div>
