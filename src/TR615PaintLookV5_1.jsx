@@ -1331,6 +1331,7 @@ export default function App() {
 
   // 選單頁面狀態："paint" (Paint / Look), "video" (Video & Audio)
   const [activeMenu, setActiveMenu] = useState("paint");
+  const [showGrid, setShowGrid] = useState(false);
   const [paintLayout, setPaintLayout] = useState("classic"); // "classic" 經典 | "cinema" 劇院
   // Camera Settings 頁狀態
   const [cam, setCam] = useState(CAM_DEFAULTS);
@@ -3317,10 +3318,75 @@ export default function App() {
           </div>
         )}
 
+        {/* Grid 系統輔助開關 */}
+        <div style={{ marginTop: "auto", padding: "16px 24px", borderTop: `1px solid ${T.line}`, display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 }}>
+          <button 
+            onClick={() => setShowGrid(!showGrid)}
+            style={{
+              width: "100%",
+              padding: "10px 0",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+              borderRadius: 6,
+              border: `1.5px solid ${showGrid ? T.blue : T.line2}`,
+              background: showGrid ? "rgba(30,155,240,0.12)" : T.panel2,
+              color: showGrid ? T.blue : T.text,
+              fontFamily: fUI,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              transition: "all 0.2s ease"
+            }}
+          >
+            <span>🌐</span> {showGrid ? "隱藏網格輔助線" : "顯示網格輔助線"}
+          </button>
+        </div>
+
       </div>
 
       {/* 主工作區 (Main Stage Panel) */}
       <div id="aver-main-stage" style={{ position: "relative", flex: 1, padding: "16px 24px", minWidth: 0, background: T.page, overflow: "hidden", height: "100vh", display: "flex", flexDirection: "column", boxSizing: "border-box" }}>
+        
+        {/* Grid 系統 12 欄輔助線 Overlay */}
+        {showGrid && (
+          <div style={{
+            position: "absolute",
+            left: "24px",
+            right: "24px",
+            top: "16px",
+            bottom: "16px",
+            maxWidth: "1350px",
+            width: "calc(100% - 48px)",
+            margin: "0 auto",
+            pointerEvents: "none",
+            zIndex: 9999,
+            display: "grid",
+            gridTemplateColumns: "repeat(12, 1fr)",
+            columnGap: "10px",
+            height: "calc(100% - 32px)",
+            boxSizing: "border-box"
+          }}>
+            {Array.from({ length: 12 }).map((_, i) => (
+              <div key={i} style={{
+                background: "rgba(255, 75, 75, 0.04)",
+                borderLeft: "1px dashed rgba(255, 75, 75, 0.22)",
+                borderRight: "1px dashed rgba(255, 75, 75, 0.22)",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "8px 0",
+                boxSizing: "border-box"
+              }}>
+                <span style={{ fontSize: 9, fontFamily: fMono, color: "#ff4d4d", background: "rgba(20, 10, 10, 0.85)", padding: "2px 5px", borderRadius: 4, border: "1px solid rgba(255, 75, 75, 0.3)", fontWeight: "bold" }}>C{i + 1}</span>
+                <span style={{ fontSize: 9, fontFamily: fMono, color: "#ff4d4d", background: "rgba(20, 10, 10, 0.85)", padding: "2px 5px", borderRadius: 4, border: "1px solid rgba(255, 75, 75, 0.3)", fontWeight: "bold" }}>C{i + 1}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
         {activeMenu === "paint" ? (
           <div id="aver-content-wrapper" key="paint" className="aver-fade" style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%", maxWidth: "1350px", margin: "0 auto", height: "100%", minHeight: 0 }}>
 
