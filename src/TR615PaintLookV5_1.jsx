@@ -4516,8 +4516,8 @@ export default function App() {
             return (
               <div id="aver-tracking-wrapper" key="tracking" className="aver-fade" style={{ width: "100%", maxWidth: "1350px", margin: "0 auto", height: "100%", overflowY: "auto", paddingRight: 8, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 14 }}>
                 {/* 上方:預覽 + 方向盤/Zoom + Save to Preset */}
-                <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-                  <div style={{ flex: 1, position: "relative", borderRadius: 10, overflow: "hidden", border: `1px solid ${T.line}`, background: "#000", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 0, aspectRatio: "16 / 9" }}>
+                <div style={{ display: "flex", gap: 14, alignItems: "stretch" }}>
+                  <div style={{ flex: 1, position: "relative", borderRadius: 10, overflow: "hidden", border: `1px solid ${T.line}`, background: "#000", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 0 }}>
                     <div style={{ position: "relative", height: "100%", width: "auto", aspectRatio: "16 / 9", overflow: "hidden" }}>
                       <div style={{ 
                         position: "absolute", 
