@@ -2687,8 +2687,8 @@ export default function App() {
               gap: 12
             }}>
               <Slider k="masterBlack" label="Master Black" hint="" min={-50} max={50} val={st.masterBlack} onChange={(v) => upd("masterBlack", v)} onStartDrag={startDrag} onEndDrag={endDrag} />
-              <Slider k="rBlack" label="R Black" hint="" min={-50} max={50} val={st.rBlack} onChange={(v) => upd("rBlack", v)} onStartDrag={startDrag} onEndDrag={endDrag} accent="#ff4d4d" />
-              <Slider k="bBlack" label="B Black" hint="" min={-50} max={50} val={st.bBlack} onChange={(v) => upd("bBlack", v)} onStartDrag={startDrag} onEndDrag={endDrag} accent="#2e90fa" />
+              <Slider k="rBlack" label="R Black" hint="" min={-50} max={50} val={st.rBlack} onChange={(v) => upd("rBlack", v)} onStartDrag={startDrag} onEndDrag={endDrag} />
+              <Slider k="bBlack" label="B Black" hint="" min={-50} max={50} val={st.bBlack} onChange={(v) => upd("bBlack", v)} onStartDrag={startDrag} onEndDrag={endDrag} />
             </div>
           </div>
         </div>
