@@ -1261,6 +1261,53 @@ export default function App() {
     relativeZoom: false, presetAffects: false,
   });
   const updLive = (k, v) => setLive((c) => ({ ...c, [k]: v }));
+
+  // PTZ 控制狀態 (Live View 與 Tracking Settings 連動)
+  const [ptz, setPtz] = useState({ pan: 0, tilt: 0, zoom: 1.0 });
+  const handlePtz = (action) => {
+    setPtz((p) => {
+      const BASE_SCALE = 1.65; // 提升為 1.65 倍，大幅提供相機鏡頭向四周轉動的視野空間，且依然完美限幅防黑邊
+      let nextZoom = p.zoom || 1.0;
+      if (action === "zoom_in") nextZoom = Math.min(nextZoom + 0.15, 3.0);
+      if (action === "zoom_out") nextZoom = Math.max(nextZoom - 0.15, 1.0);
+      if (action === "home") nextZoom = 1.0;
+
+      const S = BASE_SCALE * nextZoom;
+      // 計算最大允許百分比位移限制，防止平移時露出背景黑邊
+      const maxPanPercent = ((S - 1) / 2) * 100;
+      const maxTiltPercent = ((S - 1) / 2) * 100;
+
+      let nextPan = p.pan || 0;
+      let nextTilt = p.tilt || 0;
+      
+      // 安全獲取速度參數，避免 live 未定義或屬性為空時出錯
+      const panSpeed = (live && live.panSpeed !== undefined) ? live.panSpeed : 7;
+      const tiltSpeed = (live && live.tiltSpeed !== undefined) ? live.tiltSpeed : 7;
+      const panStep = (panSpeed / 7.0) * (4.5 / nextZoom);
+      const tiltStep = (tiltSpeed / 7.0) * (4.5 / nextZoom);
+
+      if (action === "up") nextTilt = nextTilt + tiltStep;
+      if (action === "down") nextTilt = nextTilt - tiltStep;
+      if (action === "left") nextPan = nextPan + panStep;
+      if (action === "right") nextPan = nextPan - panStep;
+      if (action === "home") {
+        nextPan = 0;
+        nextTilt = 0;
+      }
+
+      // 限幅邊界約束
+      nextPan = Math.max(Math.min(nextPan, maxPanPercent), -maxPanPercent);
+      nextTilt = Math.max(Math.min(nextTilt, maxTiltPercent), -maxTiltPercent);
+
+      // 強力防呆：避免任何 NaN 導致狀態崩潰鎖死
+      if (isNaN(nextPan)) nextPan = 0;
+      if (isNaN(nextTilt)) nextTilt = 0;
+      if (isNaN(nextZoom)) nextZoom = 1.0;
+
+      return { pan: nextPan, tilt: nextTilt, zoom: nextZoom };
+    });
+  };
+
   // Tracking Control (側邊欄)
   const [trackOn, setTrackOn] = useState(true);
   const [trackMode, setTrackMode] = useState("hybrid");
@@ -1577,9 +1624,13 @@ export default function App() {
     
     // --- 預先計算演算法常數，避免在像素大迴圈中重複計算或建立閉包 ---
     
-    // 1. Tone 常數
-    const bl = activeSt.black / 50 * 0.12;
-    const bg = (activeSt.blackGamma || 0) / 50 * 0.08;
+    // 1. Tone 常數 (Master Black, R Black, B Black)
+    const master = (activeSt.masterBlack ?? 0) / 50 * 0.12;
+    const rOffset = (activeSt.rBlack ?? 0) / 50 * 0.12;
+    const bOffset = (activeSt.bBlack ?? 0) / 50 * 0.12;
+    const bl_r = master + rOffset;
+    const bl_g = master;
+    const bl_b = master + bOffset;
     const kneeOn = true;
     let kp, slope;
     if (activeSt.autoKnee) {
@@ -1648,15 +1699,11 @@ export default function App() {
       let G = sd[i + 1] / 255;
       let B = sd[i + 2] / 255;
       
-      // A. 套用 Tone 控制
-      R = R + bl * (1 - R);
-      G = G + bl * (1 - G);
-      B = B + bl * (1 - B);
+      // A. 套用 Tone 控制 (Master Black + 各通道偏置)
+      R = R + bl_r * (1 - R);
+      G = G + bl_g * (1 - G);
+      B = B + bl_b * (1 - B);
       
-      // 套用 Black Gamma 暗部調整
-      R = R + bg * Math.pow(1 - R, 3.5);
-      G = G + bg * Math.pow(1 - G, 3.5);
-      B = B + bg * Math.pow(1 - B, 3.5);
       if (kneeOn) {
         if (R > kp) R = kp + (R - kp) * slope;
         if (G > kp) G = kp + (G - kp) * slope;
@@ -3243,25 +3290,7 @@ export default function App() {
                   {/* 主要畫面 Canvas — 已修正為 React 物理屬性防抖動架構 */}
                   <canvas ref={preRef} width={SW} height={SH} style={{ width: "100%", height: "100%", display: "block", objectFit: "contain" }} />
                   
-                  {/* Hold for Original按鈕 */}
-                  <div style={{ position: "absolute", right: 12, top: 10, display: "flex", gap: 8, zIndex: 20 }}>
-                    <button 
-                      onMouseDown={() => setBypass(true)} 
-                      onMouseUp={() => setBypass(false)} 
-                      onMouseLeave={() => setBypass(false)} 
-                      onTouchStart={() => setBypass(true)} 
-                      onTouchEnd={() => setBypass(false)}
-                      style={{ 
-                        width: 132, padding: "4px 0", textAlign: "center", fontSize: 14, cursor: "pointer", 
-                        borderRadius: 5, border: bypass ? `1px solid ${T.blue}` : "1px solid rgba(255,255,255,0.25)", 
-                        background: bypass ? "rgba(30,155,240,0.85)" : "rgba(22,24,27,0.65)", 
-                        color: bypass ? "#fff" : "rgba(255,255,255,0.9)", fontFamily: fUI, 
-                        backdropFilter: "blur(4px)", transition: "all .15s"
-                      }}
-                    >
-                      {bypass ? "Original" : "Hold for Original"}
-                    </button>
-                  </div>
+
 
                   {/* 示波器類型切換列 */}
                   <div id="aver-scope-control-bar" style={{
@@ -3525,7 +3554,7 @@ export default function App() {
                   <div id="aver-live-preview-panel" style={{ position: "relative", borderRadius: 10, overflow: "hidden", border: `1px solid ${T.line}`, width: "100%", flex: 1, minHeight: 0, background: "#000", display: "flex", alignItems: "center", justifyContent: "center", boxSizing: "border-box" }}>
                     {/* 內層 16:9 預覽區：高度 100% 填滿，寬度依 16:9 比例自適應，於左右留下黑邊 */}
                     <div style={{ position: "relative", height: "100%", width: "auto", aspectRatio: "16 / 9", overflow: "hidden" }}>
-                      <div style={{ position: "absolute", inset: 0, backgroundImage: "url(meeting_room.png)", backgroundSize: "cover", backgroundPosition: "center" }} />
+                      <div style={{ position: "absolute", inset: 0, backgroundImage: "url(meeting_room.png)", backgroundSize: "cover", backgroundPosition: "center", transform: `translate(${ptz.pan}%, ${ptz.tilt}%) scale(${ptz.zoom * 1.65})`, transition: "transform 0.1s ease-out" }} />
                     </div>
                   </div>
 
@@ -3548,19 +3577,19 @@ export default function App() {
                         <div style={{ ...sec, display: "flex", gap: 14, alignItems: "center" }}>
                           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 42px)", gridTemplateRows: "repeat(3, 42px)", gap: 5 }}>
                             <span />
-                            <button id="aver-live-btn-pan-up" style={sqStyle(false)}>▲</button>
+                            <button id="aver-live-btn-pan-up" onClick={() => handlePtz("up")} style={sqStyle(false)}>▲</button>
                             <span />
-                            <button id="aver-live-btn-pan-left" style={sqStyle(false)}>◀</button>
-                            <button id="aver-live-btn-pan-home" style={{ ...sqStyle(false), borderRadius: "50%", fontSize: 15 }}>⌂</button>
-                            <button id="aver-live-btn-pan-right" style={sqStyle(false)}>▶</button>
+                            <button id="aver-live-btn-pan-left" onClick={() => handlePtz("left")} style={sqStyle(false)}>◀</button>
+                            <button id="aver-live-btn-pan-home" onClick={() => handlePtz("home")} style={{ ...sqStyle(false), borderRadius: "50%", fontSize: 15 }}>⌂</button>
+                            <button id="aver-live-btn-pan-right" onClick={() => handlePtz("right")} style={sqStyle(false)}>▶</button>
                             <span />
-                            <button id="aver-live-btn-pan-down" style={sqStyle(false)}>▼</button>
+                            <button id="aver-live-btn-pan-down" onClick={() => handlePtz("down")} style={sqStyle(false)}>▼</button>
                             <span />
                           </div>
                           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
                             <span style={{ fontSize: 12, color: T.faint }}>Zoom</span>
-                            <button id="aver-live-btn-zoom-in" style={sqStyle(false)}>＋</button>
-                            <button id="aver-live-btn-zoom-out" style={sqStyle(false)}>－</button>
+                            <button id="aver-live-btn-zoom-in" onClick={() => handlePtz("zoom_in")} style={sqStyle(false)}>＋</button>
+                            <button id="aver-live-btn-zoom-out" onClick={() => handlePtz("zoom_out")} style={sqStyle(false)}>－</button>
                           </div>
                         </div>
 
@@ -4413,19 +4442,19 @@ export default function App() {
                 {/* 上方:預覽 + 方向盤/Zoom + Save to Preset */}
                 <div style={{ display: "flex", gap: SP[3], alignItems: "flex-start" }}>
                   <div id="aver-trk-preview-panel" style={{ flex: 1, position: "relative", borderRadius: 10, overflow: "hidden", border: `1px solid ${T.line}`, aspectRatio: "16 / 9", background: "linear-gradient(160deg,#11151b,#05070a)", minHeight: 0 }}>
-                    <div style={{ position: "absolute", inset: 0, backgroundImage: "url(meeting_room.png)", backgroundSize: "cover", backgroundPosition: "center" }} />
+                    <div style={{ position: "absolute", inset: 0, backgroundImage: "url(meeting_room.png)", backgroundSize: "cover", backgroundPosition: "center", transform: `translate(${ptz.pan}%, ${ptz.tilt}%) scale(${ptz.zoom * 1.65})`, transition: "transform 0.1s ease-out" }} />
                   </div>
                   <div id="aver-trk-ptz-control-panel" style={{ flexShrink: 0, alignSelf: "flex-start", display: "flex", flexDirection: "column", gap: 10, background: T.panel, border: `1px solid ${T.line}`, borderRadius: 10, padding: 16 }}>
                     <div style={{ display: "flex", gap: 14 }}>
                       <div style={{ display: "grid", gridTemplateColumns: "44px 44px 44px", gridTemplateRows: "44px 44px 44px", gap: 6, justifyContent: "center" }}>
-                        <div /><button style={arrowBtn}>▲</button><div />
-                        <button style={arrowBtn}>◀</button><button style={{ ...arrowBtn, fontSize: 15 }}>⌂</button><button style={arrowBtn}>▶</button>
-                        <div /><button style={arrowBtn}>▼</button><div />
+                        <div /><button onClick={() => handlePtz("up")} style={arrowBtn}>▲</button><div />
+                        <button onClick={() => handlePtz("left")} style={arrowBtn}>◀</button><button onClick={() => handlePtz("home")} style={{ ...arrowBtn, fontSize: 15 }}>⌂</button><button onClick={() => handlePtz("right")} style={arrowBtn}>▶</button>
+                        <div /><button onClick={() => handlePtz("down")} style={arrowBtn}>▼</button><div />
                       </div>
                       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, justifyContent: "center" }}>
                         <span style={{ fontSize: 12, color: T.dim }}>Zoom</span>
-                        <button style={arrowBtn}>＋</button>
-                        <button style={arrowBtn}>－</button>
+                        <button onClick={() => handlePtz("zoom_in")} style={arrowBtn}>＋</button>
+                        <button onClick={() => handlePtz("zoom_out")} style={arrowBtn}>－</button>
                       </div>
                     </div>
                     <button style={{ padding: "10px 0", fontSize: 13.5, fontWeight: 600, cursor: "pointer", borderRadius: 6, border: `1px solid ${T.line2}`, background: "#101216", color: T.text, fontFamily: fUI }}>Save to Preset 1</button>
