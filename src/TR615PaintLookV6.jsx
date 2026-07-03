@@ -3154,7 +3154,7 @@ export default function App() {
       `}</style>
 
       {/* 側邊導覽欄 (AVer WebUI Sidebar Template) */}
-      <div id="aver-sidebar-container" style={{ width: "calc(12.5vw + 4px)", minWidth: 200, background: T.side, flexShrink: 0, paddingTop: 20, display: "flex", flexDirection: "column", height: "100vh", boxSizing: "border-box", overflowY: "auto" }}>
+      <div id="aver-sidebar-container" style={{ width: 220, background: T.side, flexShrink: 0, paddingTop: 20, display: "flex", flexDirection: "column", height: "100vh", boxSizing: "border-box", overflowY: "auto" }}>
         <div style={{ padding: "4px 24px 20px", fontWeight: 700, fontSize: 22, fontStyle: "italic", letterSpacing: 0.5, color: "#fff" }}>AVer</div>
         {[
           ["Live View", "live", true], 
@@ -3220,9 +3220,9 @@ export default function App() {
       </div>
 
       {/* 主工作區 (Main Stage Panel) */}
-      <div id="aver-main-stage" style={{ position: "relative", flex: 1, padding: "16px 24px 16px 16px", minWidth: 0, background: T.page, overflow: "hidden", height: "100vh", display: "flex", flexDirection: "column", boxSizing: "border-box" }}>
+      <div id="aver-main-stage" style={{ position: "relative", flex: 1, padding: "16px 24px", minWidth: 0, background: T.page, overflow: "hidden", height: "100vh", display: "flex", flexDirection: "column", boxSizing: "border-box" }}>
         {activeMenu === "paint" ? (
-          <div id="aver-content-wrapper" key="paint" className="aver-fade" style={{ display: "flex", flexDirection: "column", gap: SP[2], width: "100%", maxWidth: "none", margin: "0 auto", height: "100%", minHeight: 0 }}>
+          <div id="aver-content-wrapper" key="paint" className="aver-fade" style={{ display: "flex", flexDirection: "column", gap: SP[2], width: "100%", maxWidth: "1350px", margin: "0 auto", height: "100%", minHeight: 0 }}>
 
           {paintLayout === "classic" ? (
           <div className="aver-classic-layout-entrance" style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%", height: "100%", minHeight: 0 }}>
@@ -3479,7 +3479,7 @@ export default function App() {
                 {paintMonitor()}
               </div>
               {/* 右:控制塢 */}
-              <div id="aver-cinema-control-panel" style={{ flex: "1 1 0", minWidth: 360, maxWidth: 480, display: "flex", flexDirection: "column", background: T.panel, border: `1px solid ${T.line}`, borderRadius: 10, minHeight: 0, overflow: "hidden", boxSizing: "border-box" }}>
+              <div style={{ flex: "1 1 0", minWidth: 360, maxWidth: 480, display: "flex", flexDirection: "column", background: T.panel, border: `1px solid ${T.line}`, borderRadius: 10, minHeight: 0, overflow: "hidden", boxSizing: "border-box" }}>
                 {/* 塢頂:場景狀態 + 存檔動作 */}
                 <div style={{ padding: "10px 14px", borderBottom: `1px solid ${T.line}`, background: "rgba(0,0,0,0.15)", display: "flex", flexDirection: "column", gap: 9, flexShrink: 0 }}>
                   {paintSceneState()}
@@ -3510,7 +3510,7 @@ export default function App() {
           )}
         </div>
         ) : activeMenu === "live" ? (
-          <div id="aver-live-view-wrapper" key="live" className="aver-fade" style={{ display: "flex", flexDirection: "column", gap: SP[2], width: "100%", maxWidth: "none", margin: "0 auto", height: "100%", minHeight: 0 }}>
+          <div id="aver-live-view-wrapper" key="live" className="aver-fade" style={{ display: "flex", flexDirection: "column", gap: SP[2], width: "100%", maxWidth: "1350px", margin: "0 auto", height: "100%", minHeight: 0 }}>
             {(() => {
               const sqStyle = (active) => ({ width: 42, height: 42, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", borderRadius: 8, border: `1px solid ${active ? T.blue : T.line2}`, background: active ? T.blue : T.panel2, color: active ? "#fff" : T.text, fontSize: 17, fontFamily: fUI });
               const sec = { border: `1px solid ${T.line}`, borderRadius: 8, padding: "10px 12px", background: "rgba(0,0,0,0.12)", boxSizing: "border-box" };
@@ -3638,7 +3638,7 @@ export default function App() {
             })()}
           </div>
         ) : activeMenu === "camera" ? (
-          <div id="aver-camera-settings-wrapper" key="camera" className="aver-fade" style={{ display: "flex", flexDirection: "column", gap: SP[2], width: "100%", maxWidth: "none", margin: "0 auto", height: "100%", minHeight: 0 }}>
+          <div id="aver-camera-settings-wrapper" key="camera" className="aver-fade" style={{ display: "flex", flexDirection: "column", gap: SP[2], width: "100%", maxWidth: "1350px", margin: "0 auto", height: "100%", minHeight: 0 }}>
             {(() => {
               const en = EXP_ENABLED[cam.expMode];
               const ndMul = { clear: 1, nd4: 0.72, nd16: 0.5, nd128: 0.32 }[cam.ndFilter] ?? 1;
@@ -3929,7 +3929,7 @@ export default function App() {
             const sel = { width: "100%", boxSizing: "border-box", background: "#101216", border: `1px solid ${T.line2}`, borderRadius: 4, color: T.text, fontSize: 13.5, padding: "8px 10px", fontFamily: fUI };
             const dhcpOn = net.dhcp === "on";
             return (
-              <div id="aver-network-wrapper" key="network" className="aver-fade" style={{ width: "100%", maxWidth: "none", margin: "0 auto", height: "100%", overflowY: "auto", paddingRight: 8, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: SP[3] }}>
+              <div id="aver-network-wrapper" key="network" className="aver-fade" style={{ width: "100%", maxWidth: "1350px", margin: "0 auto", height: "100%", overflowY: "auto", paddingRight: 8, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: SP[3] }}>
                 {/* Row 1: DHCP / Hostname / NTP */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: SP[3] }}>
                   <div style={card}>
@@ -4081,7 +4081,7 @@ export default function App() {
             const bigRow = { width: "100%", boxSizing: "border-box", display: "flex", flexWrap: "wrap", gap: SP[3], alignItems: "flex-start", padding: `${SP[3]}px 0`, borderBottom: `1px solid ${T.line}` };
             const INFO = [["Model Name", "TR315"], ["IP Address", "10.100.10.90"], ["Serial Number", "5313892200034"], ["MAC Address", "00:18:1A:11:C9:6D"], ["Firmware Version", "0.1.0001.18"], ["Lens Firmware Version", "A027"], ["MCU Firmware Version", "BB354DE9"]];
             return (
-              <div id="aver-system-wrapper" key="system" className="aver-fade" style={{ width: "100%", maxWidth: "none", margin: "0 auto", height: "100%", overflowY: "auto", paddingRight: 8, boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
+              <div id="aver-system-wrapper" key="system" className="aver-fade" style={{ width: "100%", maxWidth: "1350px", margin: "0 auto", height: "100%", overflowY: "auto", paddingRight: 8, boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
                 {/* Row 1: Upgrade Firmware / Factory Default + 設備資訊 */}
                 <div style={bigRow}>
                   <div style={{ display: "flex", flexDirection: "column", gap: SP[3] }}>
@@ -4271,7 +4271,7 @@ export default function App() {
             const bigRow = { width: "100%", boxSizing: "border-box", display: "flex", flexWrap: "wrap", gap: SP[3], alignItems: "flex-start", padding: `${SP[3]}px 0`, borderBottom: `1px solid ${T.line}` };
             const fieldLab = { fontSize: 12.5, color: T.dim, marginBottom: 5, fontWeight: 600 };
             return (
-              <div id="aver-ndi-wrapper" key="ndi" className="aver-fade" style={{ width: "100%", maxWidth: "none", margin: "0 auto", height: "100%", overflowY: "auto", paddingRight: 8, boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
+              <div id="aver-ndi-wrapper" key="ndi" className="aver-fade" style={{ width: "100%", maxWidth: "1350px", margin: "0 auto", height: "100%", overflowY: "auto", paddingRight: 8, boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
                 {/* 頂部:Built-in NDI */}
                 <div style={{ ...bigRow }}>
                   <button style={{ padding: "10px 28px", fontSize: 13.5, fontWeight: 600, cursor: "pointer", borderRadius: 4, border: `1px solid ${T.line2}`, background: ndi.mode === "builtin" ? "#1a1d21" : "transparent", color: T.text, fontFamily: fUI }}>Built-in NDI</button>
@@ -4405,7 +4405,7 @@ export default function App() {
             const desc = { fontSize: 11.5, color: T.faint, lineHeight: 1.55 };
             const arrowBtn = { width: 44, height: 44, borderRadius: 8, border: `1px solid ${T.line2}`, background: "#101216", color: T.text, fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" };
             return (
-              <div id="aver-tracking-wrapper" key="tracking" className="aver-fade" style={{ width: "100%", maxWidth: "none", margin: "0 auto", height: "100%", overflowY: "auto", paddingRight: 8, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: SP[3] }}>
+              <div id="aver-tracking-wrapper" key="tracking" className="aver-fade" style={{ width: "100%", maxWidth: "1350px", margin: "0 auto", height: "100%", overflowY: "auto", paddingRight: 8, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: SP[3] }}>
                 {/* 上方:預覽 + 方向盤/Zoom + Save to Preset */}
                 <div style={{ display: "flex", gap: SP[3], alignItems: "flex-start" }}>
                   <div id="aver-trk-preview-panel" style={{ flex: 1, position: "relative", borderRadius: 10, overflow: "hidden", border: `1px solid ${T.line}`, aspectRatio: "16 / 9", background: "linear-gradient(160deg,#11151b,#05070a)", minHeight: 0 }}>
@@ -4522,7 +4522,7 @@ export default function App() {
             );
           })()
         ) : (
-          <div id="aver-video-audio-wrapper" key="video" className="aver-fade" style={{ display: "flex", flexDirection: "column", gap: SP[3], width: "100%", maxWidth: "none", margin: "0 auto", height: "100%", overflowY: "auto", paddingRight: 8, boxSizing: "border-box" }}>
+          <div id="aver-video-audio-wrapper" key="video" className="aver-fade" style={{ display: "flex", flexDirection: "column", gap: SP[3], width: "100%", maxWidth: "1350px", margin: "0 auto", height: "100%", overflowY: "auto", paddingRight: 8, boxSizing: "border-box" }}>
             
             {/* Video & Audio 設置區容器 */}
             <div style={{ display: "flex", flexDirection: "column", gap: 14, width: "100%" }}>
