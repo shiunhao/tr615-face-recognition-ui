@@ -162,10 +162,10 @@ function applyMulti(R, G, B, axes) {
  * - Knee Point & Slope (高光壓縮): 針對高光部分做壓縮以保留過曝層次
  */
 function applyTone(R, G, B, p) {
-  // Black level 提升暗部基準 (影響全圖，但偏向暗部)
-  const bl = p.black / 50 * 0.12;
-  // Black Gamma 提升或壓低極暗部細節與對比
-  const bg = (p.blackGamma || 0) / 50 * 0.08;
+  // 取得黑電平微調值 (Master Black, R Black, B Black)
+  const master = (p.masterBlack ?? 0) / 50 * 0.12;
+  const rOffset = (p.rBlack ?? 0) / 50 * 0.12;
+  const bOffset = (p.bBlack ?? 0) / 50 * 0.12;
 
   // 決定 Auto Knee 或手動 Knee 的 Point 和 Slope 參數
   let kp, slope;
@@ -177,11 +177,11 @@ function applyTone(R, G, B, p) {
     slope = 0.5 + (p.kneeSlope + 5) / 20;
   }
 
-  const f = (v) => {
+  // 對個別通道進行黑位處理與 Knee
+  const processChannel = (v, channelOffset) => {
+    const bl = master + channelOffset;
     // 套用黑位補償
     v = v + bl * (1 - v);
-    // 套用 Black Gamma 暗部伽馬調整
-    v = v + bg * Math.pow(1 - v, 3.5);
     // 套用高光壓縮曲線
     if (v > kp) {
       v = kp + (v - kp) * slope;
@@ -189,7 +189,11 @@ function applyTone(R, G, B, p) {
     return v;
   };
 
-  return [f(R), f(G), f(B)];
+  return [
+    processChannel(R, rOffset),
+    processChannel(G, 0),
+    processChannel(B, bOffset)
+  ];
 }
 
 /**
@@ -365,7 +369,7 @@ const DEF = {
   multiOn: false, axes: DEF_AXES(),
   detailOn: false, detail: 0,
   kneeOn: false, autoKnee: false, kneeSens: "Mid", kneePoint: 95, kneeSlope: 0,
-  black: 0, blackGamma: 0,
+  masterBlack: 0, rBlack: 0, bBlack: 0,
 };
 
 // ============================================================================
@@ -375,7 +379,7 @@ const DEF = {
 /**
  * 數值滑動輸入組件 (Slider)
  */
-function Slider({ k, label, hint, min, max, val, onChange, neutral = 0, onStartDrag, onEndDrag, disabled = false, dense = false }) {
+function Slider({ k, label, hint, min, max, val, onChange, neutral = 0, onStartDrag, onEndDrag, disabled = false, dense = false, accent }) {
   return (
     <div style={{ marginBottom: dense ? 4 : 14, opacity: disabled ? 0.4 : 1 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: dense ? 2 : 5 }}>
@@ -401,7 +405,11 @@ function Slider({ k, label, hint, min, max, val, onChange, neutral = 0, onStartD
           onMouseUp={onEndDrag}
           onTouchEnd={onEndDrag}
           className="tr-sl" 
-          style={{ "--p": ((val - min) / (max - min)) * 100 + "%", cursor: disabled ? "not-allowed" : "pointer" }} 
+          style={{
+            "--p": ((val - min) / (max - min)) * 100 + "%",
+            cursor: disabled ? "not-allowed" : "pointer",
+            background: accent ? `linear-gradient(90deg, ${accent} var(--p), #33393f var(--p))` : undefined
+          }} 
         />
         <span style={{ fontFamily: fMono, fontSize: 14, color: T.faint, width: 24 }}>{max}</span>
       </div>
@@ -1884,7 +1892,7 @@ export default function App() {
     if (id === "multi") return AXIS16.some((a) => st.axes[a].hue || st.axes[a].sat);
     if (id === "detail") return st.detail !== 0;
     if (id === "knee") return st.autoKnee || st.kneePoint !== 95 || st.kneeSlope !== 0;
-    if (id === "black") return st.black !== 0;
+    if (id === "black") return (st.masterBlack ?? 0) !== 0 || (st.rBlack ?? 0) !== 0 || (st.bBlack ?? 0) !== 0;
     return false;
   };
 
@@ -2661,7 +2669,7 @@ export default function App() {
             title="Black Level" 
             right={
               <div style={{ width: 80, display: "flex" }}>
-                <MiniBtn onClick={() => setSt((s) => ({ ...s, black: 0, blackGamma: 0 }))}>Default</MiniBtn>
+                <MiniBtn onClick={() => setSt((s) => ({ ...s, masterBlack: 0, rBlack: 0, bBlack: 0 }))}>Default</MiniBtn>
               </div>
             }
           />
@@ -2678,8 +2686,9 @@ export default function App() {
               flexDirection: "column",
               gap: 12
             }}>
-              <Slider k="black" label="Level" hint="" min={-50} max={50} val={st.black} onChange={(v) => upd("black", v)} onStartDrag={startDrag} onEndDrag={endDrag} />
-              <Slider k="blackGamma" label="Black Gamma" hint="" min={-50} max={50} val={st.blackGamma} onChange={(v) => upd("blackGamma", v)} onStartDrag={startDrag} onEndDrag={endDrag} />
+              <Slider k="masterBlack" label="Master Black" hint="" min={-50} max={50} val={st.masterBlack} onChange={(v) => upd("masterBlack", v)} onStartDrag={startDrag} onEndDrag={endDrag} />
+              <Slider k="rBlack" label="R Black" hint="" min={-50} max={50} val={st.rBlack} onChange={(v) => upd("rBlack", v)} onStartDrag={startDrag} onEndDrag={endDrag} accent="#ff4d4d" />
+              <Slider k="bBlack" label="B Black" hint="" min={-50} max={50} val={st.bBlack} onChange={(v) => upd("bBlack", v)} onStartDrag={startDrag} onEndDrag={endDrag} accent="#2e90fa" />
             </div>
           </div>
         </div>
