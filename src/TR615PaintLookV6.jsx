@@ -3104,7 +3104,7 @@ export default function App() {
         .aver-fade { animation: averFade .2s ease both; }
         .aver-pulse { animation: averPulse 1.6s ease-in-out infinite; }
         @keyframes averToast {
-          from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+          from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
           to   { opacity: 1; transform: translateX(-50%) translateY(0); }
         }
         .aver-toast { animation: averToast .25s cubic-bezier(.2,.8,.3,1) both; }
@@ -5088,10 +5088,9 @@ export default function App() {
         )}
       </div>
 
-      {/* 輕量快閃提示 — 釘在 app 根容器內(非瀏覽器視窗),用 absolute 相對根容器定位,
-          避免祖先元素的 transform/filter 導致 position:fixed 跑位到視窗頂端。 */}
+      {/* 輕量快閃提示 — 使用 fixed 定位固定於瀏覽器最上方中央，並突破任何容器層級限制 */}
       {toast && (
-        <div className="aver-toast" style={{ position: "absolute", left: "50%", bottom: 28, transform: "translateX(-50%)", background: "#222a31", border: `1px solid ${T.line2}`, color: T.text, fontSize: 14, padding: "8px 16px", borderRadius: 8, fontFamily: fUI, zIndex: 1000, boxShadow: "0 4px 16px rgba(0,0,0,0.4)", pointerEvents: "none", whiteSpace: "nowrap" }}>
+        <div className="aver-toast" style={{ position: "fixed", left: "50%", top: 24, transform: "translateX(-50%)", background: "#222a31", border: `1px solid ${T.line2}`, color: T.text, fontSize: 14, padding: "8px 16px", borderRadius: 8, fontFamily: fUI, zIndex: 99999, boxShadow: "0 4px 16px rgba(0,0,0,0.4)", pointerEvents: "none", whiteSpace: "nowrap" }}>
           {toast}
         </div>
       )}
