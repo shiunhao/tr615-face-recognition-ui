@@ -2697,8 +2697,12 @@ export default function App() {
               flexDirection: "column",
               gap: 12
             }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 6 }}>
-                <Toggle on={st.autoKnee} onChange={(v) => upd("autoKnee", v)} label="Auto Knee" />
+              <div style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 6 }}>
+                <span style={{ fontSize: 13, color: T.text, fontWeight: 500, fontFamily: fUI }}>Auto Knee</span>
+                <div style={{ display: "flex", gap: 14 }}>
+                  <CamRadio id="aver-knee-radio-auto-on" label="On" checked={st.autoKnee} onChange={() => upd("autoKnee", true)} />
+                  <CamRadio id="aver-knee-radio-auto-off" label="Off" checked={!st.autoKnee} onChange={() => upd("autoKnee", false)} />
+                </div>
               </div>
               
               <Slider k="kneePoint" label="Point" hint="" min={75} max={105} val={st.kneePoint} onChange={(v) => upd("kneePoint", v)} neutral={95} onStartDrag={startDrag} onEndDrag={endDrag} disabled={st.autoKnee} />
