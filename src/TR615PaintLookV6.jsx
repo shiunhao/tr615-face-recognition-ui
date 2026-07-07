@@ -555,7 +555,7 @@ const EXP_ENABLED = {
 };
 const CAM_DEFAULTS = {
   tab: "exp", expMode: "auto",
-  ev: 0, shutterIdx: 6, irisIdx: 11, gain: 24, gainLimit: 24, blc: 0, ndFilter: "clear",
+  ev: 0, shutterIdx: 6, irisIdx: 9, gain: 24, gainLimit: 24, blc: 0, ndFilter: "clear",
   slowShutter: false, wdr: false, brightVal: 25,
   saturation: 5, sharpness: 2, contrast: 2,
   wbMode: "auto", rGain: 59, bGain: 102,
@@ -3747,43 +3747,25 @@ export default function App() {
                         {/* 欄 A */}
                         <div style={{ flex: 1, minWidth: 0, padding: "0 10px", display: "flex", flexDirection: "column", gap: 8 }}>
                           <ExpSlider id="aver-cam-slider-ev" label="Exposure Value" leftLabel="-4" rightLabel="4" valueText={cam.ev > 0 ? "+" + cam.ev : "" + cam.ev} min={-4} max={4} val={cam.ev} onChange={(v) => updCam("ev", v)} disabled={!en.ev} />
-                          <ExpSlider id="aver-cam-slider-shutter" label="Shutter Speed" leftLabel="1/1" rightLabel="1/10K" valueText={SHUTTER_LIST[cam.shutterIdx]} min={0} max={SHUTTER_LIST.length - 1} val={cam.shutterIdx} onChange={(v) => updCam("shutterIdx", v)} disabled={!en.shutter} />
-                          <ExpSlider id="aver-cam-slider-iris" label="Iris Level" leftLabel="0" rightLabel="F1.6" valueText={IRIS_LIST[cam.irisIdx]} min={0} max={IRIS_LIST.length - 1} val={cam.irisIdx} onChange={(v) => updCam("irisIdx", v)} disabled={!en.iris} />
+                          <ExpSlider id="aver-cam-slider-shutter" label="Shutter Speed" leftLabel="1/4" rightLabel="1/10K" valueText={SHUTTER_LIST[cam.shutterIdx]} min={2} max={SHUTTER_LIST.length - 1} val={cam.shutterIdx} onChange={(v) => updCam("shutterIdx", v)} disabled={!en.shutter} />
+                          <ExpSlider id="aver-cam-slider-iris" label="Iris Level" leftLabel="0" rightLabel="F2.8" valueText={IRIS_LIST[cam.irisIdx]} min={0} max={10} val={cam.irisIdx} onChange={(v) => updCam("irisIdx", v)} disabled={!en.iris} />
                         </div>
 
                         {/* 欄 B */}
                         <div style={{ flex: 1, minWidth: 0, padding: "0 10px", display: "flex", flexDirection: "column", gap: 8 }}>
                           <ExpSlider id="aver-cam-slider-gain" label="Gain Level" leftLabel="0" rightLabel="42" valueText={cam.gain + "dB"} min={0} max={42} val={cam.gain} onChange={(v) => updCam("gain", v)} disabled={!en.gain} />
                           <ExpSlider id="aver-cam-slider-gain-limit" label="Gain Limit Level" leftLabel="24" rightLabel="42" valueText={cam.gainLimit + "dB"} min={24} max={42} val={cam.gainLimit} onChange={(v) => updCam("gainLimit", v)} disabled={!en.gainLimit} />
-                          <ExpSlider id="aver-cam-slider-blc" label="BLC" leftLabel="Off" rightLabel="On" valueText={cam.blc ? "On" : "Off"} min={0} max={1} val={cam.blc} onChange={(v) => updCam("blc", v)} disabled={!en.blc} accent={T.amber} />
+                          <ExpSlider id="aver-cam-slider-bright-val" label="Bright Value" leftLabel="0" rightLabel="31" valueText={"" + cam.brightVal} min={0} max={31} val={cam.brightVal} onChange={(v) => updCam("brightVal", v)} disabled={!en.bright} />
                         </div>
 
                         {/* 欄 C */}
-                        <div style={{ flex: 1, minWidth: 0, padding: "0 10px", display: "flex", flexDirection: "column", gap: 8 }}>
-                          <div style={{ display: "flex", gap: 8, width: "100%" }}>
+                        <div style={{ flex: 1, minWidth: 0, padding: "0 10px", display: "flex", flexDirection: "column", gap: 8, height: "100%", justifyContent: "space-between" }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
                             <CamCheck id="aver-cam-check-slow-shutter" label="Slow Shutter" checked={cam.slowShutter} onChange={(v) => updCam("slowShutter", v)} disabled={!en.slow} />
                             <CamCheck id="aver-cam-check-wdr" label="WDR" checked={cam.wdr} onChange={(v) => updCam("wdr", v)} disabled={!en.wdr} />
+                            <CamCheck id="aver-cam-check-blc" label="BLC" checked={!!cam.blc} onChange={(v) => updCam("blc", v ? 1 : 0)} disabled={!en.blc} />
                           </div>
-                          <ExpSlider id="aver-cam-slider-bright-val" label="Bright Value" leftLabel="0" rightLabel="31" valueText={"" + cam.brightVal} min={0} max={31} val={cam.brightVal} onChange={(v) => updCam("brightVal", v)} disabled={!en.bright} />
-                          
-                          <div style={{
-                            width: "100%",
-                            background: "rgba(255, 255, 255, 0.03)",
-                            border: "1px solid rgba(255, 255, 255, 0.10)",
-                            borderRadius: 8,
-                            padding: "10px 12px",
-                            boxSizing: "border-box"
-                          }}>
-                            <div style={{ fontSize: 12.5, color: T.text, marginBottom: 6, fontWeight: 600 }}>ND Filter</div>
-                            <select id="aver-cam-select-nd-filter" value={cam.ndFilter} onChange={(e) => updCam("ndFilter", e.target.value)}
-                              style={{ width: "100%", padding: "6px 10px", fontSize: 13, borderRadius: 6, border: "1px solid rgba(255, 255, 255, 0.15)", background: "rgba(255, 255, 255, 0.05)", color: T.text, fontFamily: fUI, cursor: "pointer", outline: "none" }}>
-                              <option value="nd128" style={{ background: "#1a1d21", color: "#fff" }}>ND 1/128</option>
-                              <option value="nd16" style={{ background: "#1a1d21", color: "#fff" }}>ND 1/16</option>
-                              <option value="nd4" style={{ background: "#1a1d21", color: "#fff" }}>ND 1/4</option>
-                              <option value="clear" style={{ background: "#1a1d21", color: "#fff" }}>ND Clear</option>
-                            </select>
-                          </div>
-                          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
+                          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "auto", paddingBottom: 4 }}>
                             <button id="aver-cam-btn-exp-default" onClick={() => setCam({ ...CAM_DEFAULTS, tab: "exp" })}
                               style={{
                                 padding: "6px 16px",
