@@ -3759,12 +3759,32 @@ export default function App() {
                         </div>
 
                         {/* 欄 C */}
-                        <div style={{ flex: 1, minWidth: 0, padding: "0 10px", display: "flex", flexDirection: "column", gap: 8, height: "100%", justifyContent: "space-between" }}>
+                        <div style={{ flex: 1, minWidth: 0, padding: "0 10px", display: "flex", flexDirection: "column", gap: 8, height: "100%" }}>
                           <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
                             <CamCheck id="aver-cam-check-slow-shutter" label="Slow Shutter" checked={cam.slowShutter} onChange={(v) => updCam("slowShutter", v)} disabled={!en.slow} />
                             <CamCheck id="aver-cam-check-wdr" label="WDR" checked={cam.wdr} onChange={(v) => updCam("wdr", v)} disabled={!en.wdr} />
                             <CamCheck id="aver-cam-check-blc" label="BLC" checked={!!cam.blc} onChange={(v) => updCam("blc", v ? 1 : 0)} disabled={!en.blc} />
                           </div>
+                          
+                          <div style={{
+                            width: "100%",
+                            background: "rgba(255, 255, 255, 0.03)",
+                            border: "1px solid rgba(255, 255, 255, 0.10)",
+                            borderRadius: 8,
+                            padding: "8px 12px",
+                            boxSizing: "border-box",
+                            marginTop: 4
+                          }}>
+                            <div style={{ fontSize: 12, color: T.text, marginBottom: 5, fontWeight: 600 }}>ND Filter</div>
+                            <select id="aver-cam-select-nd-filter" value={cam.ndFilter} onChange={(e) => updCam("ndFilter", e.target.value)}
+                              style={{ width: "100%", padding: "5px 8px", fontSize: 12.5, borderRadius: 6, border: "1px solid rgba(255, 255, 255, 0.15)", background: "rgba(255, 255, 255, 0.05)", color: T.text, fontFamily: fUI, cursor: "pointer", outline: "none" }}>
+                              <option value="nd128" style={{ background: "#1a1d21", color: "#fff" }}>ND 1/128</option>
+                              <option value="nd16" style={{ background: "#1a1d21", color: "#fff" }}>ND 1/16</option>
+                              <option value="nd4" style={{ background: "#1a1d21", color: "#fff" }}>ND 1/4</option>
+                              <option value="clear" style={{ background: "#1a1d21", color: "#fff" }}>ND Clear</option>
+                            </select>
+                          </div>
+
                           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "auto", paddingBottom: 4 }}>
                             <button id="aver-cam-btn-exp-default" onClick={() => setCam({ ...CAM_DEFAULTS, tab: "exp" })}
                               style={{
