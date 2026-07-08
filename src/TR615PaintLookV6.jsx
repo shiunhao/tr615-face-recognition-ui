@@ -3761,7 +3761,11 @@ export default function App() {
                         {/* 欄 C */}
                         <div style={{ flex: 1, minWidth: 0, padding: "0 10px", display: "flex", flexDirection: "column", gap: 8, height: "100%" }}>
                           <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
-                            <CamCheck id="aver-cam-check-slow-shutter" label="Slow Shutter" checked={cam.slowShutter} onChange={(v) => updCam("slowShutter", v)} disabled={!en.slow} />
+                            {/* Slow Shutter 與 BLC 橫向並排並填滿左右空間 */}
+                            <div style={{ display: "flex", gap: 8, width: "100%" }}>
+                              <CamCheck id="aver-cam-check-slow-shutter" label="Slow Shutter" checked={cam.slowShutter} onChange={(v) => updCam("slowShutter", v)} disabled={!en.slow} />
+                              <CamCheck id="aver-cam-check-blc" label="BLC" checked={!!cam.blc} onChange={(v) => updCam("blc", v ? 1 : 0)} disabled={!en.blc} />
+                            </div>
                             
                             {/* WDR On/Off/Auto 三段式單選卡片 */}
                             <div id="aver-cam-wdr-radio-panel" style={{
@@ -3817,8 +3821,6 @@ export default function App() {
                                 })}
                               </div>
                             </div>
-
-                            <CamCheck id="aver-cam-check-blc" label="BLC" checked={!!cam.blc} onChange={(v) => updCam("blc", v ? 1 : 0)} disabled={!en.blc} />
                           </div>
                           
                           <div style={{
