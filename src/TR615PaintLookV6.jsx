@@ -556,7 +556,7 @@ const EXP_ENABLED = {
 const CAM_DEFAULTS = {
   tab: "exp", expMode: "auto",
   ev: 0, shutterIdx: 6, irisIdx: 9, gain: 24, gainLimit: 24, blc: 0, ndFilter: "clear",
-  slowShutter: false, wdr: false, brightVal: 25,
+  slowShutter: false, wdr: "off", brightVal: 25,
   saturation: 5, sharpness: 2, contrast: 2,
   wbMode: "auto", rGain: 59, bGain: 102,
   noiseFilter: "off", mirror: false, flip: false, ldc: false,
@@ -3762,7 +3762,62 @@ export default function App() {
                         <div style={{ flex: 1, minWidth: 0, padding: "0 10px", display: "flex", flexDirection: "column", gap: 8, height: "100%" }}>
                           <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
                             <CamCheck id="aver-cam-check-slow-shutter" label="Slow Shutter" checked={cam.slowShutter} onChange={(v) => updCam("slowShutter", v)} disabled={!en.slow} />
-                            <CamCheck id="aver-cam-check-wdr" label="WDR" checked={cam.wdr} onChange={(v) => updCam("wdr", v)} disabled={!en.wdr} />
+                            
+                            {/* WDR On/Off/Auto 三段式單選卡片 */}
+                            <div id="aver-cam-wdr-radio-panel" style={{
+                              width: "100%",
+                              borderRadius: 8,
+                              border: "1px solid rgba(255, 255, 255, 0.10)",
+                              background: "rgba(255, 255, 255, 0.03)",
+                              overflow: "hidden",
+                              display: "flex",
+                              flexDirection: "column",
+                              opacity: en.wdr ? 1 : 0.4,
+                              pointerEvents: en.wdr ? "auto" : "none",
+                              boxSizing: "border-box"
+                            }}>
+                              <div style={{
+                                padding: "5px 12px",
+                                background: "rgba(255, 255, 255, 0.05)",
+                                borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+                                fontSize: 12.5,
+                                color: T.text,
+                                fontWeight: 500,
+                                fontFamily: fUI
+                              }}>WDR</div>
+                              <div style={{
+                                display: "flex",
+                                justifyContent: "space-around",
+                                alignItems: "center",
+                                padding: "8px 10px",
+                                gap: 6
+                              }}>
+                                {["off", "on", "auto"].map((mode) => {
+                                  const active = cam.wdr === mode;
+                                  const labelText = mode === "off" ? "Off" : mode === "on" ? "On" : "Auto";
+                                  return (
+                                    <div key={mode} onClick={() => updCam("wdr", mode)}
+                                      style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, cursor: "pointer", userSelect: "none", flex: 1 }}>
+                                      <div style={{
+                                        width: 13,
+                                        height: 13,
+                                        borderRadius: "50%",
+                                        border: `1.5px solid ${active ? T.blue : "rgba(255, 255, 255, 0.4)"}`,
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        background: "transparent",
+                                        boxSizing: "border-box"
+                                      }}>
+                                        {active && <div style={{ width: 6, height: 6, borderRadius: "50%", background: T.blue }} />}
+                                      </div>
+                                      <span style={{ fontSize: 11.5, color: active ? T.text : T.dim, fontFamily: fUI }}>{labelText}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
                             <CamCheck id="aver-cam-check-blc" label="BLC" checked={!!cam.blc} onChange={(v) => updCam("blc", v ? 1 : 0)} disabled={!en.blc} />
                           </div>
                           
