@@ -1253,6 +1253,7 @@ export default function App() {
   const [faceDeleteTarget, setFaceDeleteTarget] = useState(null);
   const [editingFaceId, setEditingFaceId] = useState(null);
   const [editingFaceName, setEditingFaceName] = useState("");
+  const [faceEnrollmentTourOpen, setFaceEnrollmentTourOpen] = useState(false);
   const [faceSelectFlow, setFaceSelectFlow] = useState({ stage: "ready", candidateId: null });
   const faceEnrollTimerRef = useRef(null);
   const faceSelectTimersRef = useRef([]);
@@ -1517,13 +1518,12 @@ export default function App() {
   const [ptz, setPtz] = useState({ pan: 0, tilt: 0, zoom: 1.0 });
   const handlePtz = (action) => {
     setPtz((p) => {
-      const BASE_SCALE = 1.65; // 提升為 1.65 倍，大幅提供相機鏡頭向四周轉動的視野空間，且依然完美限幅防黑邊
       let nextZoom = p.zoom || 1.0;
-      if (action === "zoom_in") nextZoom = Math.min(nextZoom + 0.15, 3.0);
-      if (action === "zoom_out") nextZoom = Math.max(nextZoom - 0.15, 1.0);
+      if (action === "zoom_in") nextZoom = Math.min(nextZoom + 0.2, 3.0);
+      if (action === "zoom_out") nextZoom = Math.max(nextZoom - 0.2, 1.0);
       if (action === "home") nextZoom = 1.0;
 
-      const S = BASE_SCALE * nextZoom;
+      const S = nextZoom;
       // 計算最大允許百分比位移限制，防止平移時露出背景黑邊
       const maxPanPercent = ((S - 1) / 2) * 100;
       const maxTiltPercent = ((S - 1) / 2) * 100;
@@ -1537,10 +1537,12 @@ export default function App() {
       const panStep = (panSpeed / 7.0) * (4.5 / nextZoom);
       const tiltStep = (tiltSpeed / 7.0) * (4.5 / nextZoom);
 
-      if (action === "up") nextTilt = nextTilt + tiltStep;
-      if (action === "down") nextTilt = nextTilt - tiltStep;
-      if (action === "left") nextPan = nextPan + panStep;
-      if (action === "right") nextPan = nextPan - panStep;
+      if (nextZoom > 1) {
+        if (action === "up") nextTilt = nextTilt + tiltStep;
+        if (action === "down") nextTilt = nextTilt - tiltStep;
+        if (action === "left") nextPan = nextPan + panStep;
+        if (action === "right") nextPan = nextPan - panStep;
+      }
       if (action === "home") {
         nextPan = 0;
         nextTilt = 0;
@@ -4789,6 +4791,10 @@ export default function App() {
               saving: "Saving face...",
               restoring: "Restoring view...",
             }[faceSelectFlow.stage];
+            const ptzIsWide = ptz.zoom <= 1.001;
+            const ptzMoveButtonStyle = { ...arrowBtn, opacity: ptzIsWide ? 0.38 : 1, cursor: ptzIsWide ? "not-allowed" : "pointer" };
+            const ptzHomeDisabled = ptzIsWide && Math.abs(ptz.pan) < 0.01 && Math.abs(ptz.tilt) < 0.01;
+            const ptzHomeButtonStyle = { ...arrowBtn, fontSize: 15, opacity: ptzHomeDisabled ? 0.38 : 1, cursor: ptzHomeDisabled ? "not-allowed" : "pointer" };
             const TrkCheck = ({ stateKey, label, disabled = false, badge }) => (
               <button type="button" disabled={disabled} onClick={() => updTrk(stateKey, !trk[stateKey])}
                 style={{ display: "flex", alignItems: "center", gap: 8, padding: 0, border: "none", background: "transparent", color: disabled ? T.faint : T.text, fontFamily: fUI, fontSize: 13, cursor: disabled ? "not-allowed" : "pointer", textAlign: "left", opacity: disabled ? 0.5 : 1 }}>
@@ -4820,8 +4826,12 @@ export default function App() {
                           const isAdded = trk.faceBatchResult?.addedCandidateIds?.includes(candidate.id);
                           const isEligibleButFull = candidate.status === "eligible" && !isAdded;
                           const isValidSelectFace = candidate.status === "eligible";
-                          const color = isSelectMode ? isValidSelectFace ? T.blue : "#e24b4b" : isAdded ? T.blue : isEligibleButFull ? T.faint : "#e24b4b";
-                          const label = isSelectMode
+                          const libraryFull = trk.enrolledFaces.length >= 20;
+                          const blockedByLibraryFull = libraryFull && isValidSelectFace;
+                          const color = blockedByLibraryFull ? T.faint : isSelectMode ? isValidSelectFace ? T.blue : "#e24b4b" : isAdded ? T.blue : isEligibleButFull ? T.faint : "#e24b4b";
+                          const label = blockedByLibraryFull
+                            ? "Library full"
+                            : isSelectMode
                             ? isValidSelectFace
                               ? isSelected && faceSelectStageLabel ? faceSelectStageLabel.replace("...", "") : "Select"
                               : candidate.label
@@ -4870,14 +4880,14 @@ export default function App() {
                   <div id="aver-trk-ptz-control-panel" style={{ flexShrink: 0, alignSelf: "flex-start", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 10, background: T.panel, border: `1px solid ${T.line}`, borderRadius: 10, padding: 16 }}>
                     <div style={{ display: "flex", gap: 14 }}>
                       <div style={{ display: "grid", gridTemplateColumns: "44px 44px 44px", gridTemplateRows: "44px 44px 44px", gap: 6, justifyContent: "center" }}>
-                        <div /><button id="aver-ptz-up-button" onClick={() => handlePtz("up")} style={arrowBtn}>▲</button><div />
-                        <button id="aver-ptz-left-button" onClick={() => handlePtz("left")} style={arrowBtn}>◀</button><button id="aver-ptz-home-button" onClick={() => handlePtz("home")} style={{ ...arrowBtn, fontSize: 15 }}>⌂</button><button id="aver-ptz-right-button" onClick={() => handlePtz("right")} style={arrowBtn}>▶</button>
-                        <div /><button id="aver-ptz-down-button" onClick={() => handlePtz("down")} style={arrowBtn}>▼</button><div />
+                        <div /><button id="aver-ptz-up-button" type="button" aria-label="Tilt up" disabled={ptzIsWide} onClick={() => handlePtz("up")} style={ptzMoveButtonStyle}>▲</button><div />
+                        <button id="aver-ptz-left-button" type="button" aria-label="Pan left" disabled={ptzIsWide} onClick={() => handlePtz("left")} style={ptzMoveButtonStyle}>◀</button><button id="aver-ptz-home-button" type="button" aria-label="Reset PTZ view" disabled={ptzHomeDisabled} onClick={() => handlePtz("home")} style={ptzHomeButtonStyle}>⌂</button><button id="aver-ptz-right-button" type="button" aria-label="Pan right" disabled={ptzIsWide} onClick={() => handlePtz("right")} style={ptzMoveButtonStyle}>▶</button>
+                        <div /><button id="aver-ptz-down-button" type="button" aria-label="Tilt down" disabled={ptzIsWide} onClick={() => handlePtz("down")} style={ptzMoveButtonStyle}>▼</button><div />
                       </div>
                       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, justifyContent: "center" }}>
                         <span style={{ fontSize: 12, color: T.dim }}>Zoom</span>
-                        <button id="aver-ptz-zoom-in-button" onClick={() => handlePtz("zoom_in")} style={arrowBtn}>＋</button>
-                        <button id="aver-ptz-zoom-out-button" onClick={() => handlePtz("zoom_out")} style={arrowBtn}>－</button>
+                        <button id="aver-ptz-zoom-in-button" type="button" aria-label="Zoom in" disabled={ptz.zoom >= 3} onClick={() => handlePtz("zoom_in")} style={{ ...arrowBtn, opacity: ptz.zoom >= 3 ? 0.38 : 1, cursor: ptz.zoom >= 3 ? "not-allowed" : "pointer" }}>＋</button>
+                        <button id="aver-ptz-zoom-out-button" type="button" aria-label="Zoom out" disabled={ptzIsWide} onClick={() => handlePtz("zoom_out")} style={ptzMoveButtonStyle}>－</button>
                       </div>
                     </div>
                     <button id="aver-save-preset-button" style={{ padding: "10px 0", fontSize: 13.5, fontWeight: 600, cursor: "pointer", borderRadius: 6, border: `1px solid ${T.line2}`, background: "#101216", color: T.text, fontFamily: fUI }}>Save to Preset 1</button>
@@ -5051,7 +5061,17 @@ export default function App() {
                   <>
                   <div id="aver-face-enrollment" style={{ height: "100%", minHeight: 0, display: "flex" }}>
                     <div id="aver-face-enrollment-mode-panel" style={{ flex: "0 0 180px", minWidth: 0, boxSizing: "border-box", padding: "4px 12px 4px 4px", borderRight: `1px solid ${T.line}`, display: "flex", flexDirection: "column", gap: 9 }}>
-                      <span style={{ fontSize: 13.5, fontWeight: 600, color: T.text }}>Enrollment Mode</span>
+                      <div id="aver-face-enrollment-mode-header" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontSize: 13.5, fontWeight: 600, color: T.text }}>Enrollment Mode</span>
+                        <button
+                          id="aver-face-enrollment-information-button"
+                          type="button"
+                          aria-label="Open face enrollment guide"
+                          title="Face enrollment guide"
+                          onClick={() => setFaceEnrollmentTourOpen(true)}
+                          style={{ width: 18, height: 18, padding: 0, borderRadius: "50%", border: `1px solid ${T.faint}`, background: "transparent", color: T.dim, fontFamily: fUI, fontSize: 11, fontWeight: 700, lineHeight: 1, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+                        >i</button>
+                      </div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                         {[
                           ["all", "Enroll All Faces"],
@@ -5076,27 +5096,30 @@ export default function App() {
                       <div id="aver-face-enrollment-mode-description" style={{ fontSize: 11.5, color: T.faint, lineHeight: 1.45 }}>
                         {trk.faceEnrollmentMode === "all"
                           ? "Enroll every detected face in one batch."
-                          : "Click a blue face box to frame and enroll that person."}
+                          : "Click a blue face box to frame and enroll that person. Red boxes indicate faces that cannot be enrolled."}
                       </div>
-                      {trk.faceEnrollmentMode === "all" ? (
+                      {trk.faceEnrollmentMode === "all" && (
                         <button
                           id="aver-face-enroll-all-button"
                           onClick={startFaceBatchEnrollment}
                           disabled={trk.faceCaptureState === "loading" || trk.enrolledFaces.length >= 20}
-                          style={{ ...primaryBtn, width: "100%", padding: "8px 8px", marginTop: "auto", opacity: trk.faceCaptureState === "loading" || trk.enrolledFaces.length >= 20 ? 0.48 : 1, cursor: trk.faceCaptureState === "loading" || trk.enrolledFaces.length >= 20 ? "not-allowed" : "pointer" }}
+                          style={{ ...primaryBtn, width: "100%", padding: "8px 8px", opacity: trk.faceCaptureState === "loading" || trk.enrolledFaces.length >= 20 ? 0.48 : 1, cursor: trk.faceCaptureState === "loading" || trk.enrolledFaces.length >= 20 ? "not-allowed" : "pointer" }}
                         >
-                          {trk.faceCaptureState === "loading" ? "Enrolling..." : trk.enrolledFaces.length >= 20 ? "Library Full" : "Enroll All Faces"}
+                          {trk.faceCaptureState === "loading" ? "Enrolling..." : "Enroll All Faces"}
                         </button>
-                      ) : (
-                        <div id="aver-face-select-hint" style={{ marginTop: "auto", padding: "8px 9px", borderRadius: 5, background: "rgba(23,145,236,0.09)", border: `1px solid rgba(23,145,236,0.28)`, color: T.dim, fontSize: 11.5, lineHeight: 1.4 }}>
-                          {trk.enrolledFaces.length >= 20 ? "Face library is full." : faceSelectStageLabel || "Select a face in Live View."}
-                        </div>
                       )}
                     </div>
                     <div id="aver-enrolled-face-panel" style={{ flex: "1 1 0", minWidth: 0, minHeight: 0, paddingLeft: 12, display: "flex", flexDirection: "column", gap: 8 }}>
                       <div id="aver-face-enrollment-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
                         <span id="aver-enrolled-face-count" style={{ fontSize: 16, fontWeight: 500, color: T.text }}>Enrolled Face ({trk.enrolledFaces.length}/20)</span>
-                        {trk.enrolledFaces.length > 1 && <span id="aver-enrolled-face-management-hint" style={{ fontSize: 11.5, color: T.faint }}>Drag cards to reorder</span>}
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          {trk.enrolledFaces.length >= 20 && (
+                            <span id="aver-enrolled-face-library-full-status" role="status" style={{ padding: "4px 8px", borderRadius: 4, border: "1px solid rgba(245,166,35,0.42)", background: "rgba(245,166,35,0.10)", color: "#f5b74f", fontSize: 11.5, fontWeight: 600 }}>
+                              Face library is full
+                            </span>
+                          )}
+                          {trk.enrolledFaces.length > 1 && <span id="aver-enrolled-face-management-hint" style={{ fontSize: 11.5, color: T.faint }}>Drag cards to reorder</span>}
+                        </div>
                       </div>
                       {trk.enrolledFaces.length === 0 ? (
                         <div id="aver-face-enrollment-empty-state" style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 9 }}>
@@ -5208,6 +5231,44 @@ export default function App() {
                       )}
                     </div>
                   </div>
+                  {faceEnrollmentTourOpen && (
+                    <div id="aver-face-enrollment-tour-modal" role="dialog" aria-modal="true" aria-labelledby="aver-face-enrollment-tour-title" style={{ position: "fixed", inset: 0, zIndex: 75, padding: 24, background: "rgba(0,0,0,0.72)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <div id="aver-face-enrollment-tour-dialog" style={{ width: "min(590px, calc(100vw - 48px))", overflow: "hidden", borderRadius: 10, border: `1px solid ${T.line2}`, background: "#101216", boxShadow: "0 22px 64px rgba(0,0,0,0.58)" }}>
+                        <div id="aver-face-enrollment-tour-header" style={{ minHeight: 52, padding: "0 16px 0 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${T.line2}` }}>
+                          <div>
+                            <div id="aver-face-enrollment-tour-title" style={{ color: T.text, fontSize: 16, fontWeight: 600 }}>Face Detection Guide</div>
+                            <div style={{ marginTop: 2, color: T.faint, fontSize: 11.5 }}>Understand which detected faces can be enrolled.</div>
+                          </div>
+                          <button id="aver-face-enrollment-tour-close-button" type="button" aria-label="Close face enrollment guide" onClick={() => setFaceEnrollmentTourOpen(false)} style={{ width: 30, height: 30, padding: 0, borderRadius: 5, border: "none", background: "transparent", color: T.dim, fontFamily: fUI, fontSize: 20, cursor: "pointer" }}>×</button>
+                        </div>
+                        <div id="aver-face-enrollment-tour-content" style={{ padding: 20, display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 14 }}>
+                          <div id="aver-face-enrollment-tour-blue-frame" style={{ minWidth: 0, padding: 12, borderRadius: 8, border: "1px solid rgba(30,155,240,0.32)", background: "rgba(30,155,240,0.06)" }}>
+                            <div style={{ height: 146, padding: 10, boxSizing: "border-box", borderRadius: 6, background: "#090b0f", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              <div style={{ width: 116, height: 116, position: "relative", overflow: "hidden" }}>
+                                <FaceEnrollmentCrop candidateId="front-center" label="Eligible front-facing person" />
+                                <span aria-hidden="true" style={{ position: "absolute", inset: 5, border: `3px solid ${T.blue}`, boxSizing: "border-box" }} />
+                              </div>
+                            </div>
+                            <div style={{ marginTop: 10, color: T.blue, fontSize: 13, fontWeight: 700 }}>Blue frame · Ready to enroll</div>
+                            <div style={{ marginTop: 5, color: T.dim, fontSize: 12, lineHeight: 1.5 }}>The face is front-facing, clear, and large enough. Select it in Select Face mode, or include it with Enroll All Faces.</div>
+                          </div>
+                          <div id="aver-face-enrollment-tour-red-frame" style={{ minWidth: 0, padding: 12, borderRadius: 8, border: "1px solid rgba(239,83,80,0.30)", background: "rgba(239,83,80,0.05)" }}>
+                            <div style={{ height: 146, padding: 10, boxSizing: "border-box", borderRadius: 6, background: "#090b0f", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              <div style={{ width: 116, height: 116, position: "relative", overflow: "hidden" }}>
+                                <FaceEnrollmentCrop candidateId="side-profile" label="Ineligible side-facing person" />
+                                <span aria-hidden="true" style={{ position: "absolute", inset: 5, border: "3px solid #ef5350", boxSizing: "border-box" }} />
+                              </div>
+                            </div>
+                            <div style={{ marginTop: 10, color: "#ef6c68", fontSize: 13, fontWeight: 700 }}>Red frame · Cannot enroll</div>
+                            <div style={{ marginTop: 5, color: T.dim, fontSize: 12, lineHeight: 1.5 }}>The face may be angled, blurred, obstructed, or too small. Red-framed faces are excluded from enrollment.</div>
+                          </div>
+                        </div>
+                        <div id="aver-face-enrollment-tour-footer" style={{ padding: "12px 16px", display: "flex", justifyContent: "flex-end", borderTop: `1px solid ${T.line2}`, background: "rgba(255,255,255,0.018)" }}>
+                          <button id="aver-face-enrollment-tour-confirm-button" type="button" onClick={() => setFaceEnrollmentTourOpen(false)} style={{ ...primaryBtn, minWidth: 92 }}>Got it</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   {faceDragOverlay && (() => {
                     const overlayFace = trk.enrolledFaces.find((face) => face.id === faceDragOverlay.faceId);
                     if (!overlayFace) return null;
