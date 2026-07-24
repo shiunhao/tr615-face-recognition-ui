@@ -34,7 +34,7 @@
  *  - 示波器的儀器級視覺規格;Video & Audio 頁欄位值的規格依據。
  * ========================================================================== */
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 
 // ============================================================================
 // 1. 色彩與信號處理引擎 (Color & Signal Processing Engine)
@@ -1248,29 +1248,144 @@ export default function App() {
     faceEnrollmentMode: "all", faceCaptureState: "idle", faceBatchResult: null, enrolledFaces: [],
   });
   const updTrk = (k, v) => setTrk((p) => ({ ...p, [k]: v }));
-  const [faceEditOpen, setFaceEditOpen] = useState(false);
-  const [faceEditDrafts, setFaceEditDrafts] = useState([]);
+  const [draggedFaceId, setDraggedFaceId] = useState(null);
+  const [faceDragOverlay, setFaceDragOverlay] = useState(null);
+  const [faceDeleteTarget, setFaceDeleteTarget] = useState(null);
+  const [editingFaceId, setEditingFaceId] = useState(null);
+  const [editingFaceName, setEditingFaceName] = useState("");
   const [faceSelectFlow, setFaceSelectFlow] = useState({ stage: "ready", candidateId: null });
   const faceEnrollTimerRef = useRef(null);
   const faceSelectTimersRef = useRef([]);
-  const sortFacesByPriority = (faces) => [...faces].sort((a, b) => (Number(a.priority) || 1) - (Number(b.priority) || 1) || a.id - b.id);
-  const openFaceEditor = () => {
-    setFaceEditDrafts(sortFacesByPriority(trk.enrolledFaces).map((face) => ({ ...face, priority: String(face.priority || 1) })));
-    setFaceEditOpen(true);
+  const faceDraggingIdRef = useRef(null);
+  const faceDragOverRef = useRef(null);
+  const facePointerDragRef = useRef(null);
+  const faceCardPositionsRef = useRef(new Map());
+  const captureFaceCardPositions = () => {
+    const positions = new Map();
+    document.querySelectorAll("[data-face-id]").forEach((card) => {
+      positions.set(card.getAttribute("data-face-id"), card.getBoundingClientRect());
+    });
+    faceCardPositionsRef.current = positions;
   };
-  const updateFaceDraft = (id, key, value) => setFaceEditDrafts((drafts) => {
-    if (key !== "priority") return drafts.map((face) => face.id === id ? { ...face, [key]: value } : face);
-    const movingFace = drafts.find((face) => face.id === id);
-    const remainingFaces = drafts.filter((face) => face.id !== id);
-    const insertAt = Math.max(0, Math.min(Number(value) - 1, remainingFaces.length));
-    return [...remainingFaces.slice(0, insertAt), movingFace, ...remainingFaces.slice(insertAt)].map((face, index) => ({ ...face, priority: String(index + 1) }));
-  });
-  const deleteFaceDraft = (id) => setFaceEditDrafts((drafts) => sortFacesByPriority(drafts.filter((face) => face.id !== id)).map((face, index) => ({ ...face, priority: String(index + 1) })));
-  const saveFaceEditor = () => {
-    const nextFaces = sortFacesByPriority(faceEditDrafts).map((face, index) => ({ ...face, name: face.name.trim(), priority: index + 1 }));
-    setTrk((p) => ({ ...p, enrolledFaces: nextFaces }));
-    setFaceEditOpen(false);
+  const resequenceFaces = (faces) => faces.map((face, index) => ({ ...face, priority: index + 1 }));
+  const reorderEnrolledFaces = (sourceId, targetId) => {
+    captureFaceCardPositions();
+    setTrk((p) => {
+      const fromIndex = p.enrolledFaces.findIndex((face) => face.id === sourceId);
+      const targetIndex = p.enrolledFaces.findIndex((face) => face.id === targetId);
+      if (fromIndex < 0 || targetIndex < 0 || fromIndex === targetIndex) return p;
+      const nextFaces = [...p.enrolledFaces];
+      const [movingFace] = nextFaces.splice(fromIndex, 1);
+      nextFaces.splice(targetIndex, 0, movingFace);
+      return { ...p, enrolledFaces: resequenceFaces(nextFaces) };
+    });
   };
+  const startFaceDrag = (event, faceId) => {
+    faceDraggingIdRef.current = faceId;
+    setDraggedFaceId(faceId);
+    faceDragOverRef.current = null;
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", String(faceId));
+  };
+  const moveFaceDuringDrag = (event, targetId) => {
+    event.preventDefault();
+    const sourceId = faceDraggingIdRef.current;
+    if (sourceId == null || sourceId === targetId || faceDragOverRef.current === targetId) return;
+    faceDragOverRef.current = targetId;
+    reorderEnrolledFaces(sourceId, targetId);
+  };
+  const finishFaceDrag = () => {
+    faceDraggingIdRef.current = null;
+    setDraggedFaceId(null);
+    faceDragOverRef.current = null;
+  };
+  const startFacePointerDrag = (event, faceId) => {
+    if (event.button !== 0 || event.target.closest("button, input")) return;
+    const cardRect = event.currentTarget.getBoundingClientRect();
+    facePointerDragRef.current = {
+      faceId,
+      startX: event.clientX,
+      startY: event.clientY,
+      offsetX: event.clientX - cardRect.left,
+      offsetY: event.clientY - cardRect.top,
+      active: false,
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+  const moveFacePointerDrag = (event) => {
+    const pointerDrag = facePointerDragRef.current;
+    if (!pointerDrag) return;
+    const distance = Math.hypot(event.clientX - pointerDrag.startX, event.clientY - pointerDrag.startY);
+    if (!pointerDrag.active && distance < 6) return;
+    if (!pointerDrag.active) {
+      pointerDrag.active = true;
+      faceDraggingIdRef.current = pointerDrag.faceId;
+      setDraggedFaceId(pointerDrag.faceId);
+    }
+    event.preventDefault();
+    setFaceDragOverlay({
+      faceId: pointerDrag.faceId,
+      x: event.clientX - pointerDrag.offsetX,
+      y: event.clientY - pointerDrag.offsetY,
+    });
+    const targetCard = document.elementFromPoint(event.clientX, event.clientY)?.closest("[data-face-id]");
+    const targetId = targetCard ? Number(targetCard.getAttribute("data-face-id")) : null;
+    if (targetId == null || targetId === pointerDrag.faceId || faceDragOverRef.current === targetId) return;
+    faceDragOverRef.current = targetId;
+    reorderEnrolledFaces(pointerDrag.faceId, targetId);
+  };
+  const finishFacePointerDrag = (event) => {
+    if (facePointerDragRef.current?.active) event.preventDefault();
+    facePointerDragRef.current = null;
+    setFaceDragOverlay(null);
+    finishFaceDrag();
+  };
+  const startInlineFaceNameEdit = (face) => {
+    setEditingFaceId(face.id);
+    setEditingFaceName(face.name || "");
+  };
+  const finishInlineFaceNameEdit = (save = true) => {
+    if (editingFaceId == null) return;
+    if (save) {
+      setTrk((p) => ({
+        ...p,
+        enrolledFaces: p.enrolledFaces.map((face) => face.id === editingFaceId ? { ...face, name: editingFaceName.trim() } : face),
+      }));
+    }
+    setEditingFaceId(null);
+    setEditingFaceName("");
+  };
+  const confirmFaceDelete = () => {
+    if (!faceDeleteTarget) return;
+    captureFaceCardPositions();
+    setTrk((p) => ({ ...p, enrolledFaces: resequenceFaces(p.enrolledFaces.filter((face) => face.id !== faceDeleteTarget.id)) }));
+    if (editingFaceId === faceDeleteTarget.id) {
+      setEditingFaceId(null);
+      setEditingFaceName("");
+    }
+    setFaceDeleteTarget(null);
+  };
+  useLayoutEffect(() => {
+    const nextPositions = new Map();
+    document.querySelectorAll("[data-face-id]").forEach((card) => {
+      const faceId = card.getAttribute("data-face-id");
+      const nextRect = card.getBoundingClientRect();
+      nextPositions.set(faceId, nextRect);
+      const previousRect = faceCardPositionsRef.current.get(faceId);
+      if (!previousRect || String(draggedFaceId) === faceId) return;
+      const deltaX = previousRect.left - nextRect.left;
+      const deltaY = previousRect.top - nextRect.top;
+      if (Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1) return;
+      card.animate?.(
+        [
+          { transform: `translate(${deltaX}px, ${deltaY}px)` },
+          { transform: "translate(0, 0)" },
+        ],
+        { duration: 240, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" },
+      );
+    });
+    faceCardPositionsRef.current = nextPositions;
+  }, [trk.enrolledFaces, draggedFaceId]);
   const startFaceBatchEnrollment = () => {
     if (trk.faceCaptureState === "loading") return;
     if (faceEnrollTimerRef.current) clearTimeout(faceEnrollTimerRef.current);
@@ -3241,6 +3356,10 @@ export default function App() {
           50%     { box-shadow: 0 0 0 5px rgba(245,166,35,0); }
         }
         @keyframes averSpin { to { transform: rotate(360deg); } }
+        @keyframes averFaceDragLift {
+          from { opacity: .45; transform: rotate(0deg) scale(.94); }
+          to { opacity: 1; transform: rotate(-2deg) scale(1.04); }
+        }
         .aver-pop  { animation: averPop .22s cubic-bezier(.2,.8,.3,1) both; }
         .aver-fade { animation: averFade .2s ease both; }
         .aver-page-transition { animation: averFade .2s ease both; }
@@ -4977,7 +5096,7 @@ export default function App() {
                     <div id="aver-enrolled-face-panel" style={{ flex: "1 1 0", minWidth: 0, minHeight: 0, paddingLeft: 12, display: "flex", flexDirection: "column", gap: 8 }}>
                       <div id="aver-face-enrollment-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
                         <span id="aver-enrolled-face-count" style={{ fontSize: 16, fontWeight: 500, color: T.text }}>Enrolled Face ({trk.enrolledFaces.length}/20)</span>
-                        <button id="aver-face-edit-button" onClick={openFaceEditor} disabled={trk.enrolledFaces.length === 0} style={{ ...secondaryBtn, opacity: trk.enrolledFaces.length ? 1 : 0.42, cursor: trk.enrolledFaces.length ? "pointer" : "not-allowed" }}>Edit</button>
+                        {trk.enrolledFaces.length > 1 && <span id="aver-enrolled-face-management-hint" style={{ fontSize: 11.5, color: T.faint }}>Drag cards to reorder</span>}
                       </div>
                       {trk.enrolledFaces.length === 0 ? (
                         <div id="aver-face-enrollment-empty-state" style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 9 }}>
@@ -4987,19 +5106,128 @@ export default function App() {
                           <span style={{ fontSize: 12, color: T.faint }}>No faces enrolled yet</span>
                         </div>
                       ) : (
-                        <div id="aver-enrolled-face-list" aria-label="Enrolled face list" style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexWrap: "wrap", alignContent: "flex-start", alignItems: "flex-start", justifyContent: "flex-start", gap: "8px 10px", paddingTop: 2 }}>
-                          {trk.enrolledFaces.map((face, index) => <div key={face.id} id={`aver-enrolled-face-card-${String(index + 1).padStart(2, "0")}`} data-face-id={face.id} style={{ flex: "0 0 92px", width: 92, minWidth: 92, display: "flex", flexDirection: "column", gap: 3 }}>
-                            <div id={`aver-enrolled-face-photo-${String(index + 1).padStart(2, "0")}`} aria-label={`Enrolled face ${index + 1}`} style={{ width: 92, height: 92, boxSizing: "border-box", position: "relative", overflow: "hidden", border: `1px solid ${T.line2}`, backgroundColor: "rgba(23,145,236,0.12)" }}>
-                              <FaceEnrollmentCrop candidateId={face.candidateId} label={`Face ${index + 1} photo`} />
-                              <span id={`aver-enrolled-face-number-${String(index + 1).padStart(2, "0")}`} style={{ position: "absolute", top: 3, left: 3, color: "#fff", fontSize: 10, fontWeight: 700, lineHeight: 1, textShadow: "0 1px 3px #000" }}>{String(index + 1).padStart(2, "0")}</span>
-                            </div>
-                            <span id={`aver-enrolled-face-name-${String(index + 1).padStart(2, "0")}`} style={{ fontSize: 12, color: face.name ? T.text : T.faint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{face.name || "Unnamed"}</span>
-                          </div>)}
+                        <div
+                          id="aver-enrolled-face-list"
+                          aria-label="Enrolled face list"
+                          style={{
+                            flex: 1,
+                            minHeight: 0,
+                            overflowY: "auto",
+                            display: "grid",
+                            gridTemplateColumns: "repeat(auto-fill, 104px)",
+                            gridAutoRows: "126px",
+                            alignContent: "start",
+                            justifyContent: "start",
+                            gap: 0,
+                            paddingTop: 2,
+                          }}
+                        >
+                          {Array.from({ length: 20 }, (_, index) => {
+                            const face = trk.enrolledFaces[index];
+                            const order = String(index + 1).padStart(2, "0");
+                            const slotStyle = {
+                              width: 104,
+                              height: 126,
+                              position: "relative",
+                              boxSizing: "border-box",
+                              padding: "6px 6px 4px",
+                              borderRight: "1px dashed rgba(93,108,124,0.20)",
+                              borderBottom: "1px dashed rgba(93,108,124,0.20)",
+                            };
+                            const slotPlaceholder = (
+                              <span
+                                aria-hidden="true"
+                                style={{ position: "absolute", inset: "5px 7px 8px 5px", borderRadius: 6, border: "1px solid rgba(93,108,124,0.22)", background: "rgba(6,8,11,0.13)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.012)", pointerEvents: "none" }}
+                              />
+                            );
+                            if (!face) {
+                              return (
+                                <div key={`empty-face-slot-${order}`} id={`aver-enrolled-face-slot-${order}`} style={slotStyle}>
+                                  {slotPlaceholder}
+                                </div>
+                              );
+                            }
+                            const isDragging = draggedFaceId === face.id;
+                            const isEditing = editingFaceId === face.id;
+                            return <div key={face.id} id={`aver-enrolled-face-slot-${order}`} style={slotStyle}>
+                              {slotPlaceholder}
+                              <div
+                              id={`aver-enrolled-face-card-${order}`}
+                              data-face-id={face.id}
+                              draggable={false}
+                              onPointerDown={(event) => !isEditing && startFacePointerDrag(event, face.id)}
+                              onPointerMove={moveFacePointerDrag}
+                              onPointerUp={finishFacePointerDrag}
+                              onPointerCancel={finishFacePointerDrag}
+                              style={{ position: "relative", zIndex: 1, width: 92, minWidth: 92, display: "flex", flexDirection: "column", gap: 3, padding: 2, margin: -2, boxSizing: "content-box", borderRadius: 4, background: isEditing ? "rgba(30,155,240,0.10)" : isDragging ? "rgba(30,155,240,0.05)" : "transparent", outline: isEditing ? `1px solid ${T.blue}` : isDragging ? "1px dashed rgba(30,155,240,0.65)" : "1px solid transparent", opacity: isDragging ? 0.18 : 1, cursor: isDragging ? "grabbing" : isEditing ? "text" : "grab", touchAction: isEditing ? "auto" : "none", userSelect: "none", transition: "opacity 0.16s ease, background 0.16s ease, outline-color 0.16s ease" }}
+                            >
+                              <div id={`aver-enrolled-face-photo-${order}`} aria-label={`Enrolled face ${index + 1}`} style={{ width: 92, height: 92, boxSizing: "border-box", position: "relative", overflow: "hidden", border: `1px solid ${isEditing ? T.blue : T.line2}`, backgroundColor: "rgba(23,145,236,0.12)" }}>
+                                <FaceEnrollmentCrop candidateId={face.candidateId} label={`Face ${index + 1} photo`} />
+                                <span id={`aver-enrolled-face-number-${order}`} style={{ position: "absolute", top: 3, left: 3, color: "#fff", fontSize: 10, fontWeight: 700, lineHeight: 1, textShadow: "0 1px 3px #000" }}>{order}</span>
+                                <button
+                                  id={`aver-enrolled-face-delete-${order}`}
+                                  type="button"
+                                  draggable={false}
+                                  aria-label={`Delete face ${index + 1}`}
+                                  onDragStart={(event) => event.preventDefault()}
+                                  onClick={(event) => { event.stopPropagation(); setFaceDeleteTarget({ id: face.id, name: face.name, order: index + 1 }); }}
+                                  style={{ position: "absolute", top: 3, right: 3, width: 18, height: 18, padding: 0, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 3, border: "1px solid rgba(255,255,255,0.26)", background: "rgba(8,10,13,0.82)", color: "#ff6b6b", fontFamily: fUI, fontSize: 14, lineHeight: 1, cursor: "pointer" }}
+                                >×</button>
+                              </div>
+                              {isEditing ? (
+                                <div id={`aver-enrolled-face-name-edit-state-${order}`} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                                  <span style={{ fontSize: 9.5, color: T.blue, fontWeight: 600, lineHeight: 1 }}>Editing</span>
+                                  <input
+                                    id={`aver-enrolled-face-name-input-${order}`}
+                                    aria-label={`Edit name for face ${index + 1}`}
+                                    autoFocus
+                                    value={editingFaceName}
+                                    placeholder="Unnamed"
+                                    onChange={(event) => setEditingFaceName(event.target.value)}
+                                    onBlur={() => finishInlineFaceNameEdit(true)}
+                                    onKeyDown={(event) => {
+                                      if (event.key === "Enter") finishInlineFaceNameEdit(true);
+                                      if (event.key === "Escape") finishInlineFaceNameEdit(false);
+                                    }}
+                                    style={{ width: "100%", height: 23, boxSizing: "border-box", padding: "3px 5px", borderRadius: 3, border: `1px solid ${T.blue}`, outline: "none", background: "#0f1216", color: T.text, fontFamily: fUI, fontSize: 11.5 }}
+                                  />
+                                </div>
+                              ) : (
+                                <button
+                                  id={`aver-enrolled-face-name-${order}`}
+                                  type="button"
+                                  title="Click to rename"
+                                  onClick={() => startInlineFaceNameEdit(face)}
+                                  style={{ width: "100%", minWidth: 0, padding: "2px 1px", border: "none", borderRadius: 3, background: "transparent", color: face.name ? T.text : T.faint, fontFamily: fUI, fontSize: 12, lineHeight: 1.25, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "text" }}
+                                >{face.name || "Unnamed"}</button>
+                              )}
+                              </div>
+                            </div>;
+                          })}
                         </div>
                       )}
                     </div>
                   </div>
-                  {faceEditOpen && (
+                  {faceDragOverlay && (() => {
+                    const overlayFace = trk.enrolledFaces.find((face) => face.id === faceDragOverlay.faceId);
+                    if (!overlayFace) return null;
+                    const overlayIndex = trk.enrolledFaces.findIndex((face) => face.id === overlayFace.id);
+                    const overlayOrder = String(overlayIndex + 1).padStart(2, "0");
+                    return (
+                      <div
+                        id="aver-face-drag-overlay"
+                        aria-hidden="true"
+                        style={{ position: "fixed", left: faceDragOverlay.x, top: faceDragOverlay.y, width: 96, zIndex: 80, pointerEvents: "none", padding: 4, boxSizing: "border-box", borderRadius: 6, background: "rgba(16,18,22,0.96)", border: `1px solid ${T.blue}`, boxShadow: "0 14px 34px rgba(0,0,0,0.55), 0 0 0 2px rgba(30,155,240,0.16)", transform: "rotate(-2deg) scale(1.04)", transformOrigin: "center", animation: "averFaceDragLift 140ms cubic-bezier(0.2, 0.8, 0.2, 1)" }}
+                      >
+                        <div style={{ width: 86, height: 86, position: "relative", overflow: "hidden", border: `1px solid ${T.line2}`, boxSizing: "border-box" }}>
+                          <FaceEnrollmentCrop candidateId={overlayFace.candidateId} label="Dragging face" />
+                          <span style={{ position: "absolute", top: 3, left: 3, color: "#fff", fontSize: 10, fontWeight: 700, lineHeight: 1, textShadow: "0 1px 3px #000" }}>{overlayOrder}</span>
+                        </div>
+                        <div style={{ width: "100%", paddingTop: 4, color: overlayFace.name ? T.text : T.faint, fontSize: 11.5, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{overlayFace.name || "Unnamed"}</div>
+                      </div>
+                    );
+                  })()}
+                  {false && (
                     <div id="aver-face-edit-modal" role="dialog" aria-modal="true" aria-label="Edit enrolled faces" style={{ position: "fixed", inset: 0, zIndex: 60, padding: 24, background: "rgba(0,0,0,0.72)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <div id="aver-face-edit-dialog" style={{ width: "min(760px, calc(100vw - 48px))", height: "min(660px, calc(100vh - 48px))", display: "flex", flexDirection: "column", overflow: "hidden", background: "#101216", border: `1px solid ${T.line2}`, borderRadius: 10, boxShadow: "0 20px 60px rgba(0,0,0,0.55)" }}>
                         <div id="aver-face-edit-header" style={{ flexShrink: 0, padding: "18px 20px 14px", borderBottom: `1px solid ${T.line2}`, color: T.text, fontSize: 16, fontWeight: 600 }}>Edit data ({faceEditDrafts.length}/20)</div>
@@ -5021,6 +5249,20 @@ export default function App() {
                         <div id="aver-face-edit-footer" style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: 16, borderTop: `1px solid ${T.line2}` }}>
                           <button id="aver-face-edit-cancel-button" onClick={() => setFaceEditOpen(false)} style={secondaryBtn}>Cancel</button>
                           <button id="aver-face-edit-save-button" onClick={saveFaceEditor} style={primaryBtn}>OK</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {faceDeleteTarget && (
+                    <div id="aver-face-delete-modal" role="dialog" aria-modal="true" aria-labelledby="aver-face-delete-title" style={{ position: "fixed", inset: 0, zIndex: 60, padding: 24, background: "rgba(0,0,0,0.72)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <div id="aver-face-delete-dialog" style={{ width: "min(390px, calc(100vw - 48px))", overflow: "hidden", background: "#101216", border: `1px solid ${T.line2}`, borderRadius: 10, boxShadow: "0 20px 60px rgba(0,0,0,0.55)" }}>
+                        <div id="aver-face-delete-title" style={{ padding: "17px 18px 12px", color: T.text, fontSize: 16, fontWeight: 600 }}>Delete enrolled face?</div>
+                        <div style={{ padding: "0 18px 18px", color: T.dim, fontSize: 13, lineHeight: 1.55 }}>
+                          {faceDeleteTarget.name ? `“${faceDeleteTarget.name}”` : `Face ${String(faceDeleteTarget.order).padStart(2, "0")}`} will be permanently removed. The following cards will move forward automatically.
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 9, padding: "12px 16px", borderTop: `1px solid ${T.line2}`, background: "rgba(255,255,255,0.02)" }}>
+                          <button id="aver-face-delete-cancel-button" type="button" onClick={() => setFaceDeleteTarget(null)} style={secondaryBtn}>Cancel</button>
+                          <button id="aver-face-delete-confirm-button" type="button" onClick={confirmFaceDelete} style={{ ...primaryBtn, background: "#d94b4b" }}>Delete</button>
                         </div>
                       </div>
                     </div>
