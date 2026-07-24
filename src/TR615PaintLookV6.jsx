@@ -1165,6 +1165,26 @@ function SceneTile({ thumb, name, remark, active, dirty, factory, onLoad, onEdit
 // ============================================================================
 // 4. React App 主要元件 (Main Application Component)
 // ============================================================================
+const FACE_ENROLLMENT_DEMO_IMAGE = "face-enrollment-demo-tech-office-v6.png";
+const FACE_ENROLLMENT_DEMO_SIZE = { width: 1672, height: 941 };
+const FACE_ENROLLMENT_CANDIDATES = [
+  { id: "front-left", status: "eligible", label: "Enrolled", crop: { x: 276, y: 397, size: 154 } },
+  { id: "front-center", status: "eligible", label: "Enrolled", crop: { x: 585, y: 108, size: 138 } },
+  { id: "front-right", status: "eligible", label: "Enrolled", crop: { x: 1007, y: 399, size: 170 } },
+  { id: "side-profile", status: "side-angle", label: "Side angle", crop: { x: 1404, y: 330, size: 186 } },
+  { id: "blurred-distance", status: "low-quality", label: "Low quality", crop: { x: 1174, y: 157, size: 158 } },
+];
+
+function FaceEnrollmentCrop({ candidateId, label }) {
+  const candidate = FACE_ENROLLMENT_CANDIDATES.find((item) => item.id === candidateId) || FACE_ENROLLMENT_CANDIDATES[0];
+  const { x, y, size } = candidate.crop;
+  return (
+    <svg role="img" aria-label={label} viewBox={`${x} ${y} ${size} ${size}`} preserveAspectRatio="xMidYMid slice" style={{ width: "100%", height: "100%", display: "block" }}>
+      <image href={FACE_ENROLLMENT_DEMO_IMAGE} x="0" y="0" width={FACE_ENROLLMENT_DEMO_SIZE.width} height={FACE_ENROLLMENT_DEMO_SIZE.height} preserveAspectRatio="none" />
+    </svg>
+  );
+}
+
 export default function App() {
   const [st, setSt] = useState(JSON.parse(JSON.stringify(DEF)));
   const [block, setBlock] = useState("matrix");
@@ -1215,13 +1235,129 @@ export default function App() {
   const updNet = (k, v) => setNet((p) => ({ ...p, [k]: v }));
   // Tracking Settings 頁面狀態
   const [trk, setTrk] = useState({
-    tab: "presenter",
+    tab: "face",
     sensitivity: 2, returnTime: 3, presetPoint: "1",
     peopleSize: "Upper Body", placement: "Center", height: "Height1",
     effectiveArea: false, autoZoom: true, autoTilt: true, autoZoomPreset: "Preset 1",
-    multiPresenter: "off",
+    multiPresenterTracking: false, multiPresenter: "off", shieldZone: false,
+    zoneId: "Zone 1", zoneResponse: "Auto", zoneTransition: 5, zoneEnabled: true,
+    hybridPriority: "Presenter", hybridFallback: "Zone 1", hybridHoldTime: 5,
+    framingMode: "Auto Framing", framingSize: "Medium", framingSpeed: 5, groupFraming: true,
+    gestureEnabled: false, gestureTimeout: 5, gestureFeedback: true,
+    faceEnrollment: false, faceSelection: "Auto", faceAction: "Track selected face",
+    faceEnrollmentMode: "all", faceCaptureState: "idle", faceBatchResult: null, enrolledFaces: [],
   });
   const updTrk = (k, v) => setTrk((p) => ({ ...p, [k]: v }));
+  const [faceEditOpen, setFaceEditOpen] = useState(false);
+  const [faceEditDrafts, setFaceEditDrafts] = useState([]);
+  const [faceSelectFlow, setFaceSelectFlow] = useState({ stage: "ready", candidateId: null });
+  const faceEnrollTimerRef = useRef(null);
+  const faceSelectTimersRef = useRef([]);
+  const sortFacesByPriority = (faces) => [...faces].sort((a, b) => (Number(a.priority) || 1) - (Number(b.priority) || 1) || a.id - b.id);
+  const openFaceEditor = () => {
+    setFaceEditDrafts(sortFacesByPriority(trk.enrolledFaces).map((face) => ({ ...face, priority: String(face.priority || 1) })));
+    setFaceEditOpen(true);
+  };
+  const updateFaceDraft = (id, key, value) => setFaceEditDrafts((drafts) => {
+    if (key !== "priority") return drafts.map((face) => face.id === id ? { ...face, [key]: value } : face);
+    const movingFace = drafts.find((face) => face.id === id);
+    const remainingFaces = drafts.filter((face) => face.id !== id);
+    const insertAt = Math.max(0, Math.min(Number(value) - 1, remainingFaces.length));
+    return [...remainingFaces.slice(0, insertAt), movingFace, ...remainingFaces.slice(insertAt)].map((face, index) => ({ ...face, priority: String(index + 1) }));
+  });
+  const deleteFaceDraft = (id) => setFaceEditDrafts((drafts) => sortFacesByPriority(drafts.filter((face) => face.id !== id)).map((face, index) => ({ ...face, priority: String(index + 1) })));
+  const saveFaceEditor = () => {
+    const nextFaces = sortFacesByPriority(faceEditDrafts).map((face, index) => ({ ...face, name: face.name.trim(), priority: index + 1 }));
+    setTrk((p) => ({ ...p, enrolledFaces: nextFaces }));
+    setFaceEditOpen(false);
+  };
+  const startFaceBatchEnrollment = () => {
+    if (trk.faceCaptureState === "loading") return;
+    if (faceEnrollTimerRef.current) clearTimeout(faceEnrollTimerRef.current);
+    setTrk((p) => ({ ...p, faceCaptureState: "loading", faceBatchResult: null }));
+    faceEnrollTimerRef.current = setTimeout(() => {
+      setTrk((p) => {
+        const eligibleFaces = FACE_ENROLLMENT_CANDIDATES.filter((candidate) => candidate.status === "eligible");
+        const availableSlots = Math.max(0, 20 - p.enrolledFaces.length);
+        const addedCandidates = eligibleFaces.slice(0, availableSlots);
+        const batchId = Date.now();
+        const newFaces = addedCandidates.map((candidate, index) => ({
+          id: batchId + index,
+          name: "",
+          priority: p.enrolledFaces.length + index + 1,
+          candidateId: candidate.id,
+        }));
+        return {
+          ...p,
+          enrolledFaces: [...p.enrolledFaces, ...newFaces],
+          faceCaptureState: "complete",
+          faceBatchResult: {
+            detected: FACE_ENROLLMENT_CANDIDATES.length,
+            enrolled: newFaces.length,
+            rejected: FACE_ENROLLMENT_CANDIDATES.length - eligibleFaces.length,
+            capacitySkipped: eligibleFaces.length - newFaces.length,
+            addedCandidateIds: addedCandidates.map((candidate) => candidate.id),
+          },
+        };
+      });
+      faceEnrollTimerRef.current = null;
+    }, 1000);
+  };
+  const clearFaceSelectTimers = () => {
+    faceSelectTimersRef.current.forEach((timer) => clearTimeout(timer));
+    faceSelectTimersRef.current = [];
+  };
+  const changeFaceEnrollmentMode = (mode) => {
+    if (trk.faceEnrollmentMode === mode) return;
+    if (faceEnrollTimerRef.current) {
+      clearTimeout(faceEnrollTimerRef.current);
+      faceEnrollTimerRef.current = null;
+    }
+    clearFaceSelectTimers();
+    if (mode === "select") {
+      setFaceSelectFlow({ stage: "initializing", candidateId: null });
+      faceSelectTimersRef.current = [
+        setTimeout(() => {
+          setFaceSelectFlow({ stage: "ready", candidateId: null });
+          faceSelectTimersRef.current = [];
+        }, 750),
+      ];
+    } else {
+      setFaceSelectFlow({ stage: "ready", candidateId: null });
+    }
+    setTrk((p) => ({ ...p, faceEnrollmentMode: mode, faceCaptureState: p.faceCaptureState === "loading" ? "idle" : p.faceCaptureState }));
+  };
+  const startFaceSelectEnrollment = (candidateId) => {
+    const candidate = FACE_ENROLLMENT_CANDIDATES.find((item) => item.id === candidateId);
+    if (!candidate || candidate.status !== "eligible" || trk.faceEnrollmentMode !== "select" || faceSelectFlow.stage !== "ready" || trk.enrolledFaces.length >= 20) return;
+    clearFaceSelectTimers();
+    setFaceSelectFlow({ stage: "zooming", candidateId });
+    faceSelectTimersRef.current = [
+      setTimeout(() => setFaceSelectFlow({ stage: "capturing", candidateId }), 1300),
+      setTimeout(() => {
+        setFaceSelectFlow({ stage: "saving", candidateId });
+        setTrk((p) => {
+          if (p.enrolledFaces.length >= 20) return p;
+          const nextFace = {
+            id: Date.now(),
+            name: "",
+            priority: p.enrolledFaces.length + 1,
+            candidateId,
+          };
+          return { ...p, enrolledFaces: [...p.enrolledFaces, nextFace] };
+        });
+      }, 2100),
+      setTimeout(() => setFaceSelectFlow({ stage: "restoring", candidateId }), 2450),
+      setTimeout(() => {
+        setFaceSelectFlow({ stage: "ready", candidateId: null });
+        faceSelectTimersRef.current = [];
+      }, 3800),
+    ];
+  };
+  useEffect(() => () => {
+    if (faceEnrollTimerRef.current) clearTimeout(faceEnrollTimerRef.current);
+    clearFaceSelectTimers();
+  }, []);
   // NDI 頁面狀態
   const [ndi, setNdi] = useState({
     mode: "builtin",
@@ -1248,7 +1384,7 @@ export default function App() {
   const [deletingScene, setDeletingScene] = useState(null);
 
   // 選單頁面狀態："paint" (Paint / Look), "video" (Video & Audio)
-  const [activeMenu, setActiveMenu] = useState("paint");
+  const [activeMenu, setActiveMenu] = useState("tracking");
   const [gridDebug, setGridDebug] = useState("off"); // Grid 模式："off" | "viewport-24" | "container-24" | "pixel-8"
   const [paintLayout, setPaintLayout] = useState("classic"); // "classic" 經典 | "cinema" 劇院
   // Camera Settings 頁狀態
@@ -3104,9 +3240,15 @@ export default function App() {
           0%,100% { box-shadow: 0 0 0 0 rgba(245,166,35,.5); }
           50%     { box-shadow: 0 0 0 5px rgba(245,166,35,0); }
         }
+        @keyframes averSpin { to { transform: rotate(360deg); } }
         .aver-pop  { animation: averPop .22s cubic-bezier(.2,.8,.3,1) both; }
         .aver-fade { animation: averFade .2s ease both; }
+        .aver-page-transition { animation: averFade .2s ease both; }
+        .aver-spinner { animation: averSpin .8s linear infinite; }
         .aver-pulse { animation: averPulse 1.6s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce) {
+          .aver-page-transition { animation: none; }
+        }
         @keyframes averToast {
           from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
           to   { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -3226,6 +3368,7 @@ export default function App() {
           return (
             <div 
               key={lb} 
+              id={`aver-side-menu-${id}`}
               className="aver-menu-item"
               onClick={() => { if (implement) setActiveMenu(id); }}
               style={{ 
@@ -3276,8 +3419,9 @@ export default function App() {
 
       {/* 主工作區 (Main Stage Panel) */}
       <div id="aver-main-stage" style={{ position: "relative", flex: 1, padding: "16px 24px", minWidth: 0, background: T.page, overflow: "hidden", height: "100vh", display: "flex", flexDirection: "column", boxSizing: "border-box" }}>
+        <div key={activeMenu} className="aver-page-transition" style={{ width: "100%", height: "100%", minHeight: 0 }}>
         {activeMenu === "paint" ? (
-          <div id="aver-content-wrapper" key="paint" className="aver-fade" style={{ display: "flex", flexDirection: "column", gap: SP[2], width: "min(calc(75vw - 40px), 100%)", marginLeft: "max(0px, calc(16.6667vw - 225.33px))", height: "100%", minHeight: 0 }}>
+          <div id="aver-content-wrapper" style={{ display: "flex", flexDirection: "column", gap: SP[2], width: "min(calc(75vw - 40px), 100%)", marginLeft: "max(0px, calc(16.6667vw - 225.33px))", height: "100%", minHeight: 0 }}>
 
           {paintLayout === "classic" ? (
           <div className="aver-classic-layout-entrance" style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%", height: "100%", minHeight: 0 }}>
@@ -3547,7 +3691,7 @@ export default function App() {
           )}
         </div>
         ) : activeMenu === "live" ? (
-          <div id="aver-live-view-wrapper" key="live" className="aver-fade" style={{ display: "flex", flexDirection: "column", gap: SP[2], width: "min(calc(75vw - 40px), 100%)", marginLeft: "max(0px, calc(16.6667vw - 225.33px))", height: "100%", minHeight: 0 }}>
+          <div id="aver-live-view-wrapper" style={{ display: "flex", flexDirection: "column", gap: SP[2], width: "min(calc(75vw - 40px), 100%)", marginLeft: "max(0px, calc(16.6667vw - 225.33px))", height: "100%", minHeight: 0 }}>
             {(() => {
               const sqStyle = (active) => ({ width: 42, height: 42, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", borderRadius: 8, border: `1px solid ${active ? T.blue : T.line2}`, background: active ? T.blue : T.panel2, color: active ? "#fff" : T.text, fontSize: 17, fontFamily: fUI });
               const sec = { border: `1px solid ${T.line}`, borderRadius: 8, padding: "10px 12px", background: "rgba(0,0,0,0.12)", boxSizing: "border-box" };
@@ -3675,7 +3819,7 @@ export default function App() {
             })()}
           </div>
         ) : activeMenu === "camera" ? (
-          <div id="aver-camera-settings-wrapper" key="camera" className="aver-fade" style={{ display: "flex", flexDirection: "column", gap: SP[2], width: "min(calc(75vw - 40px), 100%)", marginLeft: "max(0px, calc(16.6667vw - 225.33px))", height: "100%", minHeight: 0 }}>
+          <div id="aver-camera-settings-wrapper" style={{ display: "flex", flexDirection: "column", gap: SP[2], width: "min(calc(75vw - 40px), 100%)", marginLeft: "max(0px, calc(16.6667vw - 225.33px))", height: "100%", minHeight: 0 }}>
             {(() => {
               const en = EXP_ENABLED[cam.expMode];
               const ndMul = { clear: 1, nd4: 0.72, nd16: 0.5, nd128: 0.32 }[cam.ndFilter] ?? 1;
@@ -4025,7 +4169,7 @@ export default function App() {
             const sel = { width: "100%", boxSizing: "border-box", background: "#101216", border: `1px solid ${T.line2}`, borderRadius: 4, color: T.text, fontSize: 13.5, padding: "8px 10px", fontFamily: fUI };
             const dhcpOn = net.dhcp === "on";
             return (
-              <div id="aver-network-wrapper" key="network" className="aver-fade" style={{ width: "min(calc(75vw - 40px), 100%)", marginLeft: "max(0px, calc(16.6667vw - 225.33px))", height: "100%", overflowY: "auto", paddingRight: 8, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: SP[3] }}>
+              <div id="aver-network-wrapper" style={{ width: "min(calc(75vw - 40px), 100%)", marginLeft: "max(0px, calc(16.6667vw - 225.33px))", height: "100%", overflowY: "auto", paddingRight: 8, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: SP[3] }}>
                 {/* Row 1: DHCP / Hostname / NTP */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: SP[3] }}>
                   <div style={card}>
@@ -4177,7 +4321,7 @@ export default function App() {
             const bigRow = { width: "100%", boxSizing: "border-box", display: "flex", flexWrap: "wrap", gap: SP[3], alignItems: "flex-start", padding: `${SP[3]}px 0`, borderBottom: `1px solid ${T.line}` };
             const INFO = [["Model Name", "TR315"], ["IP Address", "10.100.10.90"], ["Serial Number", "5313892200034"], ["MAC Address", "00:18:1A:11:C9:6D"], ["Firmware Version", "0.1.0001.18"], ["Lens Firmware Version", "A027"], ["MCU Firmware Version", "BB354DE9"]];
             return (
-              <div id="aver-system-wrapper" key="system" className="aver-fade" style={{ width: "min(calc(75vw - 40px), 100%)", marginLeft: "max(0px, calc(16.6667vw - 225.33px))", height: "100%", overflowY: "auto", paddingRight: 8, boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
+              <div id="aver-system-wrapper" style={{ width: "min(calc(75vw - 40px), 100%)", marginLeft: "max(0px, calc(16.6667vw - 225.33px))", height: "100%", overflowY: "auto", paddingRight: 8, boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
                 {/* Row 1: Upgrade Firmware / Factory Default + 設備資訊 */}
                 <div style={bigRow}>
                   <div style={{ display: "flex", flexDirection: "column", gap: SP[3] }}>
@@ -4367,7 +4511,7 @@ export default function App() {
             const bigRow = { width: "100%", boxSizing: "border-box", display: "flex", flexWrap: "wrap", gap: SP[3], alignItems: "flex-start", padding: `${SP[3]}px 0`, borderBottom: `1px solid ${T.line}` };
             const fieldLab = { fontSize: 12.5, color: T.dim, marginBottom: 5, fontWeight: 600 };
             return (
-              <div id="aver-ndi-wrapper" key="ndi" className="aver-fade" style={{ width: "min(calc(75vw - 40px), 100%)", marginLeft: "max(0px, calc(16.6667vw - 225.33px))", height: "100%", overflowY: "auto", paddingRight: 8, boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
+              <div id="aver-ndi-wrapper" style={{ width: "min(calc(75vw - 40px), 100%)", marginLeft: "max(0px, calc(16.6667vw - 225.33px))", height: "100%", overflowY: "auto", paddingRight: 8, boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
                 {/* 頂部:Built-in NDI */}
                 <div style={{ ...bigRow }}>
                   <button style={{ padding: "10px 28px", fontSize: 13.5, fontWeight: 600, cursor: "pointer", borderRadius: 4, border: `1px solid ${T.line2}`, background: ndi.mode === "builtin" ? "#1a1d21" : "transparent", color: T.text, fontFamily: fUI }}>Built-in NDI</button>
@@ -4494,54 +4638,151 @@ export default function App() {
           })()
         ) : activeMenu === "tracking" ? (
           (() => {
-            const TRK_TABS = [["presenter", "Presenter"], ["zone", "Zone"], ["hybrid", "Hybrid"], ["framing", "Framing"], ["gesture", "Gesture"], ["face", "Face"]];
-            const sec = { border: `1px solid ${T.line}`, borderRadius: 6, padding: "12px 14px", background: "rgba(0,0,0,0.12)", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 10 };
+            const TRK_TABS = [["presenter", "Presenter"], ["zone", "Zone"], ["hybrid", "Hybrid"], ["framing", "Framing"], ["gesture", "Gesture"], ["face", "Face Enrollment"]];
+            const sec = { border: `1px solid ${T.line}`, borderRadius: 6, padding: "8px 10px", background: "rgba(0,0,0,0.12)", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 6 };
             const secTitle = { fontSize: 12.5, color: T.dim, fontWeight: 600, marginBottom: 2 };
-            const sel = { boxSizing: "border-box", background: "#101216", border: `1px solid ${T.line2}`, borderRadius: 4, color: T.text, fontSize: 13, padding: "7px 8px", fontFamily: fUI, width: "100%" };
+            const sel = { boxSizing: "border-box", background: "#101216", border: `1px solid ${T.line2}`, borderRadius: 4, color: T.text, fontSize: 13, padding: "5px 8px", fontFamily: fUI, width: "100%" };
             const desc = { fontSize: 11.5, color: T.faint, lineHeight: 1.55 };
             const arrowBtn = { width: 44, height: 44, borderRadius: 8, border: `1px solid ${T.line2}`, background: "#101216", color: T.text, fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" };
+            const secondaryBtn = { padding: "7px 16px", fontSize: 13, cursor: "pointer", borderRadius: 5, border: `1px solid ${T.line2}`, background: "#101216", color: T.text, fontFamily: fUI, whiteSpace: "nowrap" };
+            const primaryBtn = { ...secondaryBtn, border: "none", background: T.blue, color: "#fff", fontWeight: 600 };
+            const faceFocusCandidate = FACE_ENROLLMENT_CANDIDATES.find((candidate) => candidate.id === faceSelectFlow.candidateId);
+            const faceSelectIsFocused = Boolean(faceFocusCandidate && !["ready", "restoring"].includes(faceSelectFlow.stage));
+            const faceSelectZoom = faceFocusCandidate ? Math.max(1.4, Math.min(2.25, 290 / faceFocusCandidate.crop.size)) : 1;
+            const faceSelectCenterX = faceFocusCandidate ? ((faceFocusCandidate.crop.x + faceFocusCandidate.crop.size / 2) / FACE_ENROLLMENT_DEMO_SIZE.width) * 100 : 50;
+            const faceSelectCenterY = faceFocusCandidate ? ((faceFocusCandidate.crop.y + faceFocusCandidate.crop.size / 2) / FACE_ENROLLMENT_DEMO_SIZE.height) * 100 : 50;
+            const faceSelectOrigin = faceFocusCandidate
+              ? `${faceSelectCenterX}% ${faceSelectCenterY}%`
+              : "50% 50%";
+            const clampFaceSelectOffset = (desired, center) => {
+              const zoomOverflow = faceSelectZoom - 1;
+              const minimum = -(100 - center) * zoomOverflow;
+              const maximum = center * zoomOverflow;
+              return Math.max(minimum, Math.min(maximum, desired));
+            };
+            const faceSelectPan = faceFocusCandidate ? clampFaceSelectOffset(50 - faceSelectCenterX, faceSelectCenterX) : 0;
+            const faceSelectTilt = faceFocusCandidate ? clampFaceSelectOffset(50 - faceSelectCenterY, faceSelectCenterY) : 0;
+            const faceSelectFocusedTransform = `translate(${faceSelectPan}%, ${faceSelectTilt}%) scale(${faceSelectZoom})`;
+            const faceSelectStageLabel = {
+              initializing: "Detecting faces...",
+              zooming: "Adjusting camera...",
+              capturing: "Capturing face...",
+              saving: "Saving face...",
+              restoring: "Restoring view...",
+            }[faceSelectFlow.stage];
+            const TrkCheck = ({ stateKey, label, disabled = false, badge }) => (
+              <button type="button" disabled={disabled} onClick={() => updTrk(stateKey, !trk[stateKey])}
+                style={{ display: "flex", alignItems: "center", gap: 8, padding: 0, border: "none", background: "transparent", color: disabled ? T.faint : T.text, fontFamily: fUI, fontSize: 13, cursor: disabled ? "not-allowed" : "pointer", textAlign: "left", opacity: disabled ? 0.5 : 1 }}>
+                <span style={{ width: 16, height: 16, flexShrink: 0, borderRadius: 3, border: `1.5px solid ${trk[stateKey] ? T.blue : T.line2}`, background: trk[stateKey] ? T.blue : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#fff" }}>{trk[stateKey] && "✓"}</span>
+                <span>{label}</span>
+                {badge && <span style={{ fontSize: 9.5, fontWeight: 700, color: "#fff", background: T.amber, borderRadius: 3, padding: "1px 5px" }}>{badge}</span>}
+              </button>
+            );
+            const TrkSlider = ({ label, stateKey, min, max }) => (
+              <div style={sec}>
+                <div style={{ display: "flex", justifyContent: "space-between" }}><span style={secTitle}>{label}</span><span style={{ fontFamily: fMono, color: T.blue, fontSize: 13 }}>{trk[stateKey]}</span></div>
+                <input type="range" min={min} max={max} value={trk[stateKey]} onChange={(e) => updTrk(stateKey, parseInt(e.target.value))} className="tr-sl" style={{ "--p": ((trk[stateKey] - min) / (max - min)) * 100 + "%", width: "100%" }} />
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: T.faint }}><span>{min}</span><span>{max}</span></div>
+              </div>
+            );
             return (
-              <div id="aver-tracking-wrapper" key="tracking" className="aver-fade" style={{ width: "min(calc(75vw - 40px), 100%)", marginLeft: "max(0px, calc(16.6667vw - 225.33px))", height: "100%", overflowY: "auto", paddingRight: 8, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: SP[3] }}>
+              <div id="aver-tracking-wrapper" style={{ width: "min(calc(75vw - 40px), 100%)", marginLeft: "max(0px, calc(16.6667vw - 225.33px))", height: "100%", minHeight: 0, overflow: "hidden", paddingRight: 8, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 10 }}>
                 {/* 上方:預覽 + 方向盤/Zoom + Save to Preset */}
-                <div style={{ display: "flex", gap: SP[3], alignItems: "flex-start" }}>
-                  <div id="aver-trk-preview-panel" style={{ flex: 1, position: "relative", borderRadius: 10, overflow: "hidden", border: `1px solid ${T.line}`, aspectRatio: "16 / 9", background: "linear-gradient(160deg,#11151b,#05070a)", minHeight: 0 }}>
-                    <div style={{ position: "absolute", inset: 0, backgroundImage: "url(meeting_room.png)", backgroundSize: "cover", backgroundPosition: "center", transform: `translate(${ptz.pan}%, ${ptz.tilt}%) scale(${ptz.zoom * 1.65})`, transition: "transform 0.1s ease-out" }} />
+                <div style={{ flex: "1 1 0", minHeight: 0, display: "flex", gap: 10, alignItems: "stretch" }}>
+                  <div id="aver-trk-preview-panel" style={{ flex: "1 1 0", minWidth: 0, position: "relative", borderRadius: 10, overflow: "hidden", border: `1px solid ${T.line}`, background: "#000", minHeight: 0 }}>
+                    {trk.tab === "face" ? (
+                      <svg id="aver-face-enrollment-live-view" viewBox={`0 0 ${FACE_ENROLLMENT_DEMO_SIZE.width} ${FACE_ENROLLMENT_DEMO_SIZE.height}`} preserveAspectRatio="xMidYMid meet" style={{ width: "100%", height: "100%", display: "block", transform: faceSelectIsFocused ? faceSelectFocusedTransform : `translate(${ptz.pan}%, ${ptz.tilt}%) scale(${ptz.zoom})`, transformOrigin: faceSelectIsFocused ? faceSelectOrigin : "50% 50%", transition: "transform 1.2s cubic-bezier(0.45, 0, 0.55, 1), transform-origin 1.2s cubic-bezier(0.45, 0, 0.55, 1)" }}>
+                        <image href={FACE_ENROLLMENT_DEMO_IMAGE} x="0" y="0" width={FACE_ENROLLMENT_DEMO_SIZE.width} height={FACE_ENROLLMENT_DEMO_SIZE.height} preserveAspectRatio="none" />
+                        {(trk.faceEnrollmentMode === "select" ? faceSelectFlow.stage !== "initializing" : trk.faceCaptureState === "complete") && FACE_ENROLLMENT_CANDIDATES.map((candidate) => {
+                          const isSelectMode = trk.faceEnrollmentMode === "select";
+                          const isSelected = faceSelectFlow.candidateId === candidate.id;
+                          const hideDuringFocus = faceSelectIsFocused && !isSelected;
+                          if (hideDuringFocus) return null;
+                          const isAdded = trk.faceBatchResult?.addedCandidateIds?.includes(candidate.id);
+                          const isEligibleButFull = candidate.status === "eligible" && !isAdded;
+                          const isValidSelectFace = candidate.status === "eligible";
+                          const color = isSelectMode ? isValidSelectFace ? T.blue : "#e24b4b" : isAdded ? T.blue : isEligibleButFull ? T.faint : "#e24b4b";
+                          const label = isSelectMode
+                            ? isValidSelectFace
+                              ? isSelected && faceSelectStageLabel ? faceSelectStageLabel.replace("...", "") : "Select"
+                              : candidate.label
+                            : isAdded ? "Enrolled" : isEligibleButFull ? "Library full" : candidate.label;
+                          const { x, y, size } = candidate.crop;
+                          const isSelectable = isSelectMode && isValidSelectFace && faceSelectFlow.stage === "ready" && trk.enrolledFaces.length < 20;
+                          return (
+                            <g
+                              key={candidate.id}
+                              id={`aver-face-box-${candidate.id}`}
+                              role={isSelectable ? "button" : undefined}
+                              tabIndex={isSelectable ? 0 : undefined}
+                              aria-label={isSelectMode ? isValidSelectFace ? `Enroll ${candidate.id}` : `${candidate.label}; face cannot be enrolled` : undefined}
+                              onClick={() => isSelectable && startFaceSelectEnrollment(candidate.id)}
+                              onKeyDown={(event) => {
+                                if (isSelectable && (event.key === "Enter" || event.key === " ")) {
+                                  event.preventDefault();
+                                  startFaceSelectEnrollment(candidate.id);
+                                }
+                              }}
+                              style={{ cursor: isSelectable ? "pointer" : "default", pointerEvents: isSelectMode ? "all" : "auto", opacity: faceSelectFlow.stage === "restoring" && isSelected ? 0.7 : 1 }}
+                            >
+                              <rect x={x} y={y} width={size} height={size} fill={isSelectMode ? "rgba(23,145,236,0.001)" : "none"} stroke={color} strokeWidth="5" vectorEffect="non-scaling-stroke" />
+                              <rect x={x} y={Math.max(0, y - 30)} width={Math.max(96, label.length * 15)} height="30" fill={color} opacity="0.94" />
+                              <text x={x + 9} y={Math.max(21, y - 9)} fill="#fff" fontSize="20" fontWeight="700" fontFamily={fUI}>{label}</text>
+                            </g>
+                          );
+                        })}
+                      </svg>
+                    ) : (
+                      <div style={{ position: "absolute", inset: 0, backgroundImage: "url(meeting_room.png)", backgroundSize: "cover", backgroundRepeat: "no-repeat", backgroundPosition: "center", transform: `translate(${ptz.pan}%, ${ptz.tilt}%) scale(${ptz.zoom * 1.65})`, transition: "transform 0.1s ease-out" }} />
+                    )}
+                    {trk.tab === "face" && trk.faceCaptureState === "loading" && (
+                      <div id="aver-face-enrollment-loading" role="status" aria-live="polite" style={{ position: "absolute", inset: 0, background: "rgba(5,7,9,0.68)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, color: "#fff", zIndex: 2 }}>
+                        <span className="aver-spinner" aria-hidden="true" style={{ width: 34, height: 34, boxSizing: "border-box", borderRadius: "50%", border: "3px solid rgba(255,255,255,0.26)", borderTopColor: T.blue }} />
+                        <span style={{ fontSize: 14, fontWeight: 600 }}>Detecting and enrolling faces...</span>
+                      </div>
+                    )}
+                    {trk.tab === "face" && trk.faceEnrollmentMode === "select" && faceSelectStageLabel && (
+                      <div id="aver-face-select-progress" role="status" aria-live="polite" style={{ position: "absolute", top: 12, left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 6, background: "rgba(8,10,13,0.88)", border: `1px solid ${T.line2}`, color: "#fff", fontSize: 12.5, fontWeight: 600, zIndex: 3, pointerEvents: "none" }}>
+                        {faceSelectFlow.stage !== "restoring" && <span className="aver-spinner" aria-hidden="true" style={{ width: 15, height: 15, boxSizing: "border-box", borderRadius: "50%", border: "2px solid rgba(255,255,255,0.25)", borderTopColor: T.blue }} />}
+                        {faceSelectStageLabel}
+                      </div>
+                    )}
                   </div>
-                  <div id="aver-trk-ptz-control-panel" style={{ flexShrink: 0, alignSelf: "flex-start", display: "flex", flexDirection: "column", gap: 10, background: T.panel, border: `1px solid ${T.line}`, borderRadius: 10, padding: 16 }}>
+                  <div id="aver-trk-ptz-control-panel" style={{ flexShrink: 0, alignSelf: "flex-start", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 10, background: T.panel, border: `1px solid ${T.line}`, borderRadius: 10, padding: 16 }}>
                     <div style={{ display: "flex", gap: 14 }}>
                       <div style={{ display: "grid", gridTemplateColumns: "44px 44px 44px", gridTemplateRows: "44px 44px 44px", gap: 6, justifyContent: "center" }}>
-                        <div /><button onClick={() => handlePtz("up")} style={arrowBtn}>▲</button><div />
-                        <button onClick={() => handlePtz("left")} style={arrowBtn}>◀</button><button onClick={() => handlePtz("home")} style={{ ...arrowBtn, fontSize: 15 }}>⌂</button><button onClick={() => handlePtz("right")} style={arrowBtn}>▶</button>
-                        <div /><button onClick={() => handlePtz("down")} style={arrowBtn}>▼</button><div />
+                        <div /><button id="aver-ptz-up-button" onClick={() => handlePtz("up")} style={arrowBtn}>▲</button><div />
+                        <button id="aver-ptz-left-button" onClick={() => handlePtz("left")} style={arrowBtn}>◀</button><button id="aver-ptz-home-button" onClick={() => handlePtz("home")} style={{ ...arrowBtn, fontSize: 15 }}>⌂</button><button id="aver-ptz-right-button" onClick={() => handlePtz("right")} style={arrowBtn}>▶</button>
+                        <div /><button id="aver-ptz-down-button" onClick={() => handlePtz("down")} style={arrowBtn}>▼</button><div />
                       </div>
                       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, justifyContent: "center" }}>
                         <span style={{ fontSize: 12, color: T.dim }}>Zoom</span>
-                        <button onClick={() => handlePtz("zoom_in")} style={arrowBtn}>＋</button>
-                        <button onClick={() => handlePtz("zoom_out")} style={arrowBtn}>－</button>
+                        <button id="aver-ptz-zoom-in-button" onClick={() => handlePtz("zoom_in")} style={arrowBtn}>＋</button>
+                        <button id="aver-ptz-zoom-out-button" onClick={() => handlePtz("zoom_out")} style={arrowBtn}>－</button>
                       </div>
                     </div>
-                    <button style={{ padding: "10px 0", fontSize: 13.5, fontWeight: 600, cursor: "pointer", borderRadius: 6, border: `1px solid ${T.line2}`, background: "#101216", color: T.text, fontFamily: fUI }}>Save to Preset 1</button>
+                    <button id="aver-save-preset-button" style={{ padding: "10px 0", fontSize: 13.5, fontWeight: 600, cursor: "pointer", borderRadius: 6, border: `1px solid ${T.line2}`, background: "#101216", color: T.text, fontFamily: fUI }}>Save to Preset 1</button>
                   </div>
                 </div>
 
                 {/* Tab 列 + 內容(版面同 Camera Settings:邊框面板 + 固定寬藍底分頁 + 分隔線) */}
-                <div id="aver-trk-control-panel" style={{ background: T.panel, border: `1px solid ${T.line}`, borderRadius: 10, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                <div id="aver-trk-control-panel" style={{ flex: "0 0 350px", height: 350, minHeight: 0, background: T.panel, border: `1px solid ${T.line}`, borderRadius: 10, display: "flex", flexDirection: "column", overflow: "hidden" }}>
                   {/* 分頁列 */}
-                  <div style={{ display: "flex", borderBottom: `1px solid ${T.line}` }}>
+                  <div id="aver-trk-tab-bar" style={{ display: "flex", borderBottom: `1px solid ${T.line}` }}>
                     {TRK_TABS.map(([id, lb]) => (
-                      <button key={id} onClick={() => updTrk("tab", id)}
-                        style={{ flex: `0 0 ${colW(4)}px`, padding: "9px 0", fontSize: 13.5, fontWeight: 600, cursor: "pointer", border: "none", background: trk.tab === id ? T.blue : "transparent", color: trk.tab === id ? "#fff" : T.dim, fontFamily: fUI, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                      <button key={id} id={`aver-trk-tab-${id}`} onClick={() => updTrk("tab", id)}
+                        style={{ flex: "1 1 0", minWidth: 0, padding: "9px 6px", fontSize: 13.5, fontWeight: 600, cursor: "pointer", border: "none", background: trk.tab === id ? T.blue : "transparent", color: trk.tab === id ? "#fff" : T.dim, fontFamily: fUI, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, whiteSpace: "nowrap" }}>
                         {lb}{id === "gesture" && <span style={{ fontSize: 10, fontWeight: 700, color: "#fff", background: T.amber, borderRadius: 3, padding: "1px 5px" }}>Beta</span>}
                       </button>
                     ))}
                   </div>
 
                   {/* 分頁內容 */}
-                  <div style={{ padding: 16 }}>
+                  <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 8 }}>
                 {trk.tab === "presenter" ? (
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: SP[3], alignItems: "start" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, alignItems: "start" }}>
                     {/* 第 1 欄 */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: SP[3] }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                       <div style={sec}>
                         <div style={{ display: "flex", justifyContent: "space-between" }}><span style={secTitle}>Tracking Sensitivity</span><span style={{ fontFamily: fMono, color: T.blue, fontSize: 13 }}>{trk.sensitivity}</span></div>
                         <input type="range" min={1} max={3} value={trk.sensitivity} onChange={(e) => updTrk("sensitivity", parseInt(e.target.value))} className="tr-sl" style={{ "--p": ((trk.sensitivity - 1) / 2) * 100 + "%", width: "100%" }} />
@@ -4553,6 +4794,9 @@ export default function App() {
                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: T.faint }}><span>3</span><span>10</span></div>
                       </div>
                       <div style={sec}>
+                        <TrkCheck stateKey="multiPresenterTracking" label="Multi-Presenter Tracking" badge="Beta" />
+                      </div>
+                      <div style={sec}>
                         <div onClick={() => updTrk("effectiveArea", !trk.effectiveArea)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
                           <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             <span style={{ width: 16, height: 16, borderRadius: 3, border: `1.5px solid ${trk.effectiveArea ? T.blue : T.line2}`, background: trk.effectiveArea ? T.blue : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#fff" }}>{trk.effectiveArea && "✓"}</span>
@@ -4560,12 +4804,11 @@ export default function App() {
                           </span>
                           <button style={{ padding: "5px 14px", fontSize: 12.5, cursor: "pointer", borderRadius: 4, border: `1px solid ${T.line2}`, background: "#101216", color: T.text, fontFamily: fUI }}>Set</button>
                         </div>
-                        <div style={desc}>When Effective Tracking Area is on, camera only tracks around the selected area, please configure the targeted area from the live view.</div>
                       </div>
                     </div>
 
                     {/* 第 2 欄 */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: SP[3] }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                       <div style={sec}>
                         <span style={secTitle}>Tracking Point</span>
                         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -4586,12 +4829,8 @@ export default function App() {
                       </div>
                       <div style={sec}>
                         <div style={{ display: "flex", gap: 24 }}>
-                          {[["autoZoom", "Auto Zoom"], ["autoTilt", "Auto Tilt"]].map(([k, lb]) => (
-                            <div key={k} onClick={() => updTrk(k, !trk[k])} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                              <span style={{ width: 16, height: 16, borderRadius: 3, border: `1.5px solid ${trk[k] ? T.blue : T.line2}`, background: trk[k] ? T.blue : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#fff" }}>{trk[k] && "✓"}</span>
-                              <span style={{ fontSize: 13, color: T.text }}>{lb}</span>
-                            </div>
-                          ))}
+                          <TrkCheck stateKey="autoZoom" label="Auto Zoom" />
+                          <TrkCheck stateKey="autoTilt" label="Auto Tilt" />
                         </div>
                         <div style={desc}>When Auto Zoom is off, camera stops zooming in/out automatically and shoots the presenter according to the shot size of the preset you choose.</div>
                         <select value={trk.autoZoomPreset} onChange={(e) => updTrk("autoZoomPreset", e.target.value)} style={sel}><option>Preset 1</option><option>Preset 2</option><option>Preset 3</option></select>
@@ -4599,18 +4838,194 @@ export default function App() {
                     </div>
 
                     {/* 第 3 欄 */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: SP[3] }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                       <div style={sec}>
                         <span style={{ display: "flex", alignItems: "center", gap: 6, ...secTitle }}>Multi-Presenter Detection <span style={{ color: T.faint, fontSize: 11 }}>ⓘ</span></span>
-                        <div style={desc}>When more than one presenter is detected, the camera will zoom out to focus on more people, so everybody is framed into the view. Please choose a preset below to be the zoom size for the multi-presenter focus area.</div>
+                        <div style={desc}>When two or more people appear, the camera moves to the “Multi-Person Preset Point” to include everyone. Select a preset point wide enough to cover the scene.</div>
                         <select value={trk.multiPresenter} onChange={(e) => updTrk("multiPresenter", e.target.value)} style={sel}><option value="off">Off</option><option value="preset1">Preset 1</option><option value="preset2">Preset 2</option></select>
+                      </div>
+                      <div style={sec}>
+                        <div style={secTitle}>Set Shield Zone</div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button onClick={() => updTrk("shieldZone", true)} style={{ ...primaryBtn, flex: 1 }}>Set</button>
+                          <button onClick={() => updTrk("shieldZone", false)} style={{ ...secondaryBtn, flex: 1 }}>Clear</button>
+                        </div>
                       </div>
                     </div>
                   </div>
-                ) : (
-                  <div style={{ minHeight: 220, display: "flex", alignItems: "center", justifyContent: "center", color: T.faint, fontSize: 13, border: `1px dashed ${T.line2}`, borderRadius: 8 }}>
-                    （此 Tab 內容待補）
+                ) : trk.tab === "zone" ? (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: SP[3], alignItems: "start" }}>
+                    <div style={sec}>
+                      <span style={secTitle}>Tracking Zone</span>
+                      <select value={trk.zoneId} onChange={(e) => updTrk("zoneId", e.target.value)} style={sel}>
+                        {["Zone 1", "Zone 2", "Zone 3", "Zone 4"].map((v) => <option key={v}>{v}</option>)}
+                      </select>
+                      <TrkCheck stateKey="zoneEnabled" label="Enable selected zone" />
+                      <div style={desc}>Define the active area directly on the preview, then choose how the camera responds when a presenter enters it.</div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button style={primaryBtn}>Set Zone</button>
+                        <button style={secondaryBtn}>Clear</button>
+                      </div>
+                    </div>
+                    <div style={sec}>
+                      <span style={secTitle}>Zone Response</span>
+                      <select value={trk.zoneResponse} onChange={(e) => updTrk("zoneResponse", e.target.value)} style={sel}>
+                        <option>Auto</option><option>Call Preset</option><option>Hold Frame</option>
+                      </select>
+                      <div style={desc}>Auto follows the presenter inside the zone. Call Preset moves to the saved composition assigned to this zone.</div>
+                    </div>
+                    <TrkSlider label="Transition Speed" stateKey="zoneTransition" min={1} max={10} />
                   </div>
+                ) : trk.tab === "hybrid" ? (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: SP[3], alignItems: "start" }}>
+                    <div style={sec}>
+                      <span style={secTitle}>Tracking Priority</span>
+                      <select value={trk.hybridPriority} onChange={(e) => updTrk("hybridPriority", e.target.value)} style={sel}>
+                        <option>Presenter</option><option>Zone</option><option>Last Active Target</option>
+                      </select>
+                      <div style={desc}>Choose which signal takes priority when presenter and zone tracking are both available.</div>
+                    </div>
+                    <div style={sec}>
+                      <span style={secTitle}>Fallback Position</span>
+                      <select value={trk.hybridFallback} onChange={(e) => updTrk("hybridFallback", e.target.value)} style={sel}>
+                        <option>Zone 1</option><option>Zone 2</option><option>Preset 1</option><option>Tracking Point</option>
+                      </select>
+                      <div style={desc}>The camera returns here after the active presenter leaves the frame.</div>
+                    </div>
+                    <TrkSlider label="Target Hold Time" stateKey="hybridHoldTime" min={1} max={10} />
+                  </div>
+                ) : trk.tab === "framing" ? (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: SP[3], alignItems: "start" }}>
+                    <div style={sec}>
+                      <span style={secTitle}>Framing Mode</span>
+                      <select value={trk.framingMode} onChange={(e) => updTrk("framingMode", e.target.value)} style={sel}>
+                        <option>Auto Framing</option><option>Single Person</option><option>Group</option>
+                      </select>
+                      <TrkCheck stateKey="groupFraming" label="Include everyone in frame" />
+                    </div>
+                    <div style={sec}>
+                      <span style={secTitle}>Target Size</span>
+                      <select value={trk.framingSize} onChange={(e) => updTrk("framingSize", e.target.value)} style={sel}>
+                        <option>Close</option><option>Medium</option><option>Wide</option>
+                      </select>
+                      <div style={desc}>Controls the amount of headroom and surrounding context kept around detected people.</div>
+                    </div>
+                    <TrkSlider label="Framing Speed" stateKey="framingSpeed" min={1} max={10} />
+                  </div>
+                ) : trk.tab === "gesture" ? (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: SP[3], alignItems: "start" }}>
+                    <div style={sec}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={secTitle}>Gesture Control</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: "#fff", background: T.amber, borderRadius: 3, padding: "2px 6px" }}>Beta</span>
+                      </div>
+                      <TrkCheck stateKey="gestureEnabled" label="Enable gesture commands" />
+                      <div style={desc}>Allow supported hand gestures to start or stop tracking without using the web interface.</div>
+                    </div>
+                    <TrkSlider label="Gesture Confirmation Time" stateKey="gestureTimeout" min={2} max={10} />
+                    <div style={sec}>
+                      <TrkCheck stateKey="gestureFeedback" label="Show recognition feedback" disabled={!trk.gestureEnabled} />
+                      <div style={desc}>A temporary status indicator appears in Live View when a gesture is recognized.</div>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                  <div id="aver-face-enrollment" style={{ height: "100%", minHeight: 0, display: "flex" }}>
+                    <div id="aver-face-enrollment-mode-panel" style={{ flex: "0 0 180px", minWidth: 0, boxSizing: "border-box", padding: "4px 12px 4px 4px", borderRight: `1px solid ${T.line}`, display: "flex", flexDirection: "column", gap: 9 }}>
+                      <span style={{ fontSize: 13.5, fontWeight: 600, color: T.text }}>Enrollment Mode</span>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {[
+                          ["all", "Enroll All Faces"],
+                          ["select", "Select Face"],
+                        ].map(([mode, label]) => {
+                          const active = trk.faceEnrollmentMode === mode;
+                          return (
+                            <button
+                              key={mode}
+                              id={`aver-face-enrollment-mode-${mode}`}
+                              type="button"
+                              aria-pressed={active}
+                              onClick={() => changeFaceEnrollmentMode(mode)}
+                              style={{ width: "100%", minHeight: 34, display: "flex", alignItems: "center", gap: 8, padding: "7px 9px", borderRadius: 5, border: `1px solid ${active ? T.blue : T.line2}`, background: active ? "rgba(23,145,236,0.14)" : "#101216", color: active ? "#fff" : T.dim, fontFamily: fUI, fontSize: 12.5, fontWeight: active ? 600 : 400, cursor: "pointer", textAlign: "left" }}
+                            >
+                              <span aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0, borderRadius: "50%", boxSizing: "border-box", border: `2px solid ${active ? T.blue : T.faint}`, boxShadow: active ? `inset 0 0 0 2px #101216` : "none", background: active ? T.blue : "transparent" }} />
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div id="aver-face-enrollment-mode-description" style={{ fontSize: 11.5, color: T.faint, lineHeight: 1.45 }}>
+                        {trk.faceEnrollmentMode === "all"
+                          ? "Enroll every detected face in one batch."
+                          : "Click a blue face box to frame and enroll that person."}
+                      </div>
+                      {trk.faceEnrollmentMode === "all" ? (
+                        <button
+                          id="aver-face-enroll-all-button"
+                          onClick={startFaceBatchEnrollment}
+                          disabled={trk.faceCaptureState === "loading" || trk.enrolledFaces.length >= 20}
+                          style={{ ...primaryBtn, width: "100%", padding: "8px 8px", marginTop: "auto", opacity: trk.faceCaptureState === "loading" || trk.enrolledFaces.length >= 20 ? 0.48 : 1, cursor: trk.faceCaptureState === "loading" || trk.enrolledFaces.length >= 20 ? "not-allowed" : "pointer" }}
+                        >
+                          {trk.faceCaptureState === "loading" ? "Enrolling..." : trk.enrolledFaces.length >= 20 ? "Library Full" : "Enroll All Faces"}
+                        </button>
+                      ) : (
+                        <div id="aver-face-select-hint" style={{ marginTop: "auto", padding: "8px 9px", borderRadius: 5, background: "rgba(23,145,236,0.09)", border: `1px solid rgba(23,145,236,0.28)`, color: T.dim, fontSize: 11.5, lineHeight: 1.4 }}>
+                          {trk.enrolledFaces.length >= 20 ? "Face library is full." : faceSelectStageLabel || "Select a face in Live View."}
+                        </div>
+                      )}
+                    </div>
+                    <div id="aver-enrolled-face-panel" style={{ flex: "1 1 0", minWidth: 0, minHeight: 0, paddingLeft: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+                      <div id="aver-face-enrollment-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                        <span id="aver-enrolled-face-count" style={{ fontSize: 16, fontWeight: 500, color: T.text }}>Enrolled Face ({trk.enrolledFaces.length}/20)</span>
+                        <button id="aver-face-edit-button" onClick={openFaceEditor} disabled={trk.enrolledFaces.length === 0} style={{ ...secondaryBtn, opacity: trk.enrolledFaces.length ? 1 : 0.42, cursor: trk.enrolledFaces.length ? "pointer" : "not-allowed" }}>Edit</button>
+                      </div>
+                      {trk.enrolledFaces.length === 0 ? (
+                        <div id="aver-face-enrollment-empty-state" style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 9 }}>
+                          <div id="aver-face-enrollment-empty-icon" aria-label="No enrolled faces" style={{ width: 78, height: 78, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(255,255,255,0.06)" }}>
+                            <span aria-hidden="true" style={{ color: T.faint, fontSize: 9, fontWeight: 600, letterSpacing: "0.06em" }}>ICON</span>
+                          </div>
+                          <span style={{ fontSize: 12, color: T.faint }}>No faces enrolled yet</span>
+                        </div>
+                      ) : (
+                        <div id="aver-enrolled-face-list" aria-label="Enrolled face list" style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexWrap: "wrap", alignContent: "flex-start", alignItems: "flex-start", justifyContent: "flex-start", gap: "8px 10px", paddingTop: 2 }}>
+                          {trk.enrolledFaces.map((face, index) => <div key={face.id} id={`aver-enrolled-face-card-${String(index + 1).padStart(2, "0")}`} data-face-id={face.id} style={{ flex: "0 0 92px", width: 92, minWidth: 92, display: "flex", flexDirection: "column", gap: 3 }}>
+                            <div id={`aver-enrolled-face-photo-${String(index + 1).padStart(2, "0")}`} aria-label={`Enrolled face ${index + 1}`} style={{ width: 92, height: 92, boxSizing: "border-box", position: "relative", overflow: "hidden", border: `1px solid ${T.line2}`, backgroundColor: "rgba(23,145,236,0.12)" }}>
+                              <FaceEnrollmentCrop candidateId={face.candidateId} label={`Face ${index + 1} photo`} />
+                              <span id={`aver-enrolled-face-number-${String(index + 1).padStart(2, "0")}`} style={{ position: "absolute", top: 3, left: 3, color: "#fff", fontSize: 10, fontWeight: 700, lineHeight: 1, textShadow: "0 1px 3px #000" }}>{String(index + 1).padStart(2, "0")}</span>
+                            </div>
+                            <span id={`aver-enrolled-face-name-${String(index + 1).padStart(2, "0")}`} style={{ fontSize: 12, color: face.name ? T.text : T.faint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{face.name || "Unnamed"}</span>
+                          </div>)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {faceEditOpen && (
+                    <div id="aver-face-edit-modal" role="dialog" aria-modal="true" aria-label="Edit enrolled faces" style={{ position: "fixed", inset: 0, zIndex: 60, padding: 24, background: "rgba(0,0,0,0.72)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <div id="aver-face-edit-dialog" style={{ width: "min(760px, calc(100vw - 48px))", height: "min(660px, calc(100vh - 48px))", display: "flex", flexDirection: "column", overflow: "hidden", background: "#101216", border: `1px solid ${T.line2}`, borderRadius: 10, boxShadow: "0 20px 60px rgba(0,0,0,0.55)" }}>
+                        <div id="aver-face-edit-header" style={{ flexShrink: 0, padding: "18px 20px 14px", borderBottom: `1px solid ${T.line2}`, color: T.text, fontSize: 16, fontWeight: 600 }}>Edit data ({faceEditDrafts.length}/20)</div>
+                        <div id="aver-face-edit-grid" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 8, display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gridAutoRows: 160, alignContent: "start", gap: 10 }}>
+                          {faceEditDrafts.map((face, index) => <div key={face.id} id={`aver-face-edit-card-${String(index + 1).padStart(2, "0")}`} data-face-id={face.id} style={{ minWidth: 0, height: 160, boxSizing: "border-box", padding: 6, background: "rgba(255,255,255,0.05)", border: `1px solid ${T.line}`, borderRadius: 6, display: "flex", flexDirection: "column", gap: 4 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: 4, alignItems: "flex-start" }}>
+                              <div id={`aver-face-edit-photo-${String(index + 1).padStart(2, "0")}`} style={{ width: 70, height: 70, position: "relative", overflow: "hidden", border: `1px solid ${T.line2}` }}>
+                                <FaceEnrollmentCrop candidateId={face.candidateId} label={`Face ${index + 1} photo`} />
+                                <span style={{ position: "absolute", top: 3, left: 3, color: "#fff", fontSize: 11, fontWeight: 700, textShadow: "0 1px 2px #000" }}>{String(index + 1).padStart(2, "0")}</span>
+                              </div>
+                              <button id={`aver-face-edit-delete-${String(index + 1).padStart(2, "0")}`} type="button" aria-label={`Delete ${face.name}`} onClick={() => deleteFaceDraft(face.id)} style={{ width: 24, height: 24, padding: 0, border: "none", background: "transparent", color: "#e66", fontSize: 18, cursor: "pointer" }}>×</button>
+                            </div>
+                            <input id={`aver-face-edit-name-${String(index + 1).padStart(2, "0")}`} aria-label={`Name for face ${index + 1}`} value={face.name} placeholder="Name (optional)" onChange={(e) => updateFaceDraft(face.id, "name", e.target.value)} style={{ ...sel, padding: "5px 6px", fontSize: 12 }} />
+                            <label style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 11, color: T.dim }}>Priority
+                              <select id={`aver-face-edit-priority-${String(index + 1).padStart(2, "0")}`} aria-label={`Priority for face ${index + 1}`} value={face.priority} onChange={(e) => updateFaceDraft(face.id, "priority", e.target.value)} style={{ ...sel, padding: "4px 6px", fontSize: 12 }}>{Array.from({ length: faceEditDrafts.length }, (_, n) => <option key={n + 1} value={n + 1}>{n + 1}</option>)}</select>
+                            </label>
+                          </div>)}
+                        </div>
+                        <div id="aver-face-edit-footer" style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: 16, borderTop: `1px solid ${T.line2}` }}>
+                          <button id="aver-face-edit-cancel-button" onClick={() => setFaceEditOpen(false)} style={secondaryBtn}>Cancel</button>
+                          <button id="aver-face-edit-save-button" onClick={saveFaceEditor} style={primaryBtn}>OK</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  </>
                   )}
                   </div>
                 </div>
@@ -4618,7 +5033,7 @@ export default function App() {
             );
           })()
         ) : (
-          <div id="aver-video-audio-wrapper" key="video" className="aver-fade" style={{ display: "flex", flexDirection: "column", gap: SP[3], width: "min(calc(75vw - 40px), 100%)", marginLeft: "max(0px, calc(16.6667vw - 225.33px))", height: "100%", overflowY: "auto", paddingRight: 8, boxSizing: "border-box" }}>
+          <div id="aver-video-audio-wrapper" style={{ display: "flex", flexDirection: "column", gap: SP[3], width: "min(calc(75vw - 40px), 100%)", marginLeft: "max(0px, calc(16.6667vw - 225.33px))", height: "100%", overflowY: "auto", paddingRight: 8, boxSizing: "border-box" }}>
             
             {/* Video & Audio 設置區容器 */}
             <div style={{ display: "flex", flexDirection: "column", gap: 14, width: "100%" }}>
@@ -5131,6 +5546,7 @@ export default function App() {
 
         {/* 右側懸浮工具(最高層級):Multi-Matrix 樣式切換鈕(僅 multi 區) + 導覽 i 鈕。
             Matrix 視覺化與版面切換鈕已依 PM 定案移除。 */}
+        </div>
         {activeMenu === "paint" && (
           <div style={{ 
             position: "absolute", 
