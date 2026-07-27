@@ -1255,7 +1255,15 @@ export default function App() {
   const [editingFaceName, setEditingFaceName] = useState("");
   const [faceEnrollmentTourOpen, setFaceEnrollmentTourOpen] = useState(false);
   const [faceSelectFlow, setFaceSelectFlow] = useState({ stage: "ready", candidateId: null });
+  const [faceSelectCoachmarkVisible, setFaceSelectCoachmarkVisible] = useState(false);
+  const [faceSelectCoachmarkDismissed, setFaceSelectCoachmarkDismissed] = useState(false);
+  const [faceBatchCoachmarkVisible, setFaceBatchCoachmarkVisible] = useState(false);
+  const [faceBatchCoachmarkDismissed, setFaceBatchCoachmarkDismissed] = useState(false);
+  const [faceEnrollmentIntroOpen, setFaceEnrollmentIntroOpen] = useState(true);
+  const [faceEnrollmentGuideTarget, setFaceEnrollmentGuideTarget] = useState(null);
+  const [hoveredFaceCandidateId, setHoveredFaceCandidateId] = useState(null);
   const faceEnrollTimerRef = useRef(null);
+  const faceEnrollAllButtonRef = useRef(null);
   const faceSelectTimersRef = useRef([]);
   const faceDraggingIdRef = useRef(null);
   const faceDragOverRef = useRef(null);
@@ -1389,6 +1397,9 @@ export default function App() {
   }, [trk.enrolledFaces, draggedFaceId]);
   const startFaceBatchEnrollment = () => {
     if (trk.faceCaptureState === "loading") return;
+    setFaceEnrollmentIntroOpen(false);
+    setFaceBatchCoachmarkDismissed(true);
+    setFaceBatchCoachmarkVisible(false);
     if (faceEnrollTimerRef.current) clearTimeout(faceEnrollTimerRef.current);
     setTrk((p) => ({ ...p, faceCaptureState: "loading", faceBatchResult: null }));
     faceEnrollTimerRef.current = setTimeout(() => {
@@ -1423,8 +1434,57 @@ export default function App() {
     faceSelectTimersRef.current.forEach((timer) => clearTimeout(timer));
     faceSelectTimersRef.current = [];
   };
+  useEffect(() => {
+    const shouldShow = trk.faceEnrollmentMode === "select"
+      && faceSelectFlow.stage === "ready"
+      && !faceSelectCoachmarkDismissed
+      && trk.enrolledFaces.length < 20;
+    if (!shouldShow) {
+      setFaceSelectCoachmarkVisible(false);
+      return undefined;
+    }
+    setFaceSelectCoachmarkVisible(true);
+    const coachmarkTimer = setTimeout(() => setFaceSelectCoachmarkVisible(false), 4200);
+    return () => clearTimeout(coachmarkTimer);
+  }, [trk.faceEnrollmentMode, faceSelectFlow.stage, faceSelectCoachmarkDismissed, trk.enrolledFaces.length]);
+  useEffect(() => {
+    const shouldShow = trk.faceEnrollmentMode === "all"
+      && trk.faceCaptureState !== "loading"
+      && !faceEnrollmentIntroOpen
+      && !faceBatchCoachmarkDismissed
+      && trk.enrolledFaces.length < 20;
+    if (!shouldShow) {
+      setFaceBatchCoachmarkVisible(false);
+      return undefined;
+    }
+    setFaceBatchCoachmarkVisible(true);
+    const coachmarkTimer = setTimeout(() => setFaceBatchCoachmarkVisible(false), 4200);
+    return () => clearTimeout(coachmarkTimer);
+  }, [trk.faceEnrollmentMode, trk.faceCaptureState, faceEnrollmentIntroOpen, faceBatchCoachmarkDismissed, trk.enrolledFaces.length]);
+  useLayoutEffect(() => {
+    const shouldTrackTarget = faceEnrollmentIntroOpen && trk.tab === "face" && trk.faceEnrollmentMode === "all";
+    if (!shouldTrackTarget) {
+      setFaceEnrollmentGuideTarget(null);
+      return undefined;
+    }
+    const updateTarget = () => {
+      const target = faceEnrollAllButtonRef.current;
+      if (!target) return;
+      const { left, top, width, height } = target.getBoundingClientRect();
+      setFaceEnrollmentGuideTarget({ left, top, width, height });
+    };
+    const frame = window.requestAnimationFrame(updateTarget);
+    window.addEventListener("resize", updateTarget);
+    window.addEventListener("scroll", updateTarget, true);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", updateTarget);
+      window.removeEventListener("scroll", updateTarget, true);
+    };
+  }, [faceEnrollmentIntroOpen, trk.tab, trk.faceEnrollmentMode]);
   const changeFaceEnrollmentMode = (mode) => {
     if (trk.faceEnrollmentMode === mode) return;
+    setFaceEnrollmentIntroOpen(false);
     if (faceEnrollTimerRef.current) {
       clearTimeout(faceEnrollTimerRef.current);
       faceEnrollTimerRef.current = null;
@@ -1447,6 +1507,9 @@ export default function App() {
     const candidate = FACE_ENROLLMENT_CANDIDATES.find((item) => item.id === candidateId);
     if (!candidate || candidate.status !== "eligible" || trk.faceEnrollmentMode !== "select" || faceSelectFlow.stage !== "ready" || trk.enrolledFaces.length >= 20) return;
     clearFaceSelectTimers();
+    setFaceSelectCoachmarkDismissed(true);
+    setFaceSelectCoachmarkVisible(false);
+    setHoveredFaceCandidateId(null);
     setFaceSelectFlow({ stage: "zooming", candidateId });
     faceSelectTimersRef.current = [
       setTimeout(() => setFaceSelectFlow({ stage: "capturing", candidateId }), 1300),
@@ -3362,6 +3425,23 @@ export default function App() {
           from { opacity: .45; transform: rotate(0deg) scale(.94); }
           to { opacity: 1; transform: rotate(-2deg) scale(1.04); }
         }
+        @keyframes averFaceSelectPulse {
+          0%   { opacity: 0; stroke-width: 3px; }
+          18%  { opacity: .8; stroke-width: 5px; }
+          55%  { opacity: .35; stroke-width: 11px; }
+          100% { opacity: 0; stroke-width: 15px; }
+        }
+        .aver-face-select-pulse {
+          animation: averFaceSelectPulse 1.25s cubic-bezier(.2,.7,.25,1) 2;
+          pointer-events: none;
+        }
+        @keyframes averEnrollmentGuideArrow {
+          0%, 100% { transform: translateY(0); opacity: .78; }
+          50% { transform: translateY(8px); opacity: 1; }
+        }
+        .aver-face-enrollment-guide-arrow {
+          animation: averEnrollmentGuideArrow .78s ease-in-out infinite;
+        }
         .aver-pop  { animation: averPop .22s cubic-bezier(.2,.8,.3,1) both; }
         .aver-fade { animation: averFade .2s ease both; }
         .aver-page-transition { animation: averFade .2s ease both; }
@@ -4824,20 +4904,21 @@ export default function App() {
                           const hideDuringFocus = faceSelectIsFocused && !isSelected;
                           if (hideDuringFocus) return null;
                           const isAdded = trk.faceBatchResult?.addedCandidateIds?.includes(candidate.id);
-                          const isEligibleButFull = candidate.status === "eligible" && !isAdded;
                           const isValidSelectFace = candidate.status === "eligible";
                           const libraryFull = trk.enrolledFaces.length >= 20;
                           const blockedByLibraryFull = libraryFull && isValidSelectFace;
-                          const color = blockedByLibraryFull ? T.faint : isSelectMode ? isValidSelectFace ? T.blue : "#e24b4b" : isAdded ? T.blue : isEligibleButFull ? T.faint : "#e24b4b";
+                          const isSelectable = isSelectMode && isValidSelectFace && faceSelectFlow.stage === "ready" && !libraryFull;
+                          const isHovered = isSelectable && hoveredFaceCandidateId === candidate.id;
+                          const shouldPulse = isSelectable;
+                          const color = blockedByLibraryFull ? T.faint : isSelectMode ? isValidSelectFace ? isHovered ? "#49b7ff" : T.blue : "#e24b4b" : isValidSelectFace ? T.blue : "#e24b4b";
                           const label = blockedByLibraryFull
                             ? "Library full"
                             : isSelectMode
                             ? isValidSelectFace
-                              ? isSelected && faceSelectStageLabel ? faceSelectStageLabel.replace("...", "") : "Select"
+                              ? isSelected && faceSelectStageLabel ? faceSelectStageLabel.replace("...", "") : isHovered ? "Enroll this face" : "＋ Enroll"
                               : candidate.label
-                            : isAdded ? "Enrolled" : isEligibleButFull ? "Library full" : candidate.label;
+                            : isAdded ? "Enrolled" : isValidSelectFace ? "Eligible" : candidate.label;
                           const { x, y, size } = candidate.crop;
-                          const isSelectable = isSelectMode && isValidSelectFace && faceSelectFlow.stage === "ready" && trk.enrolledFaces.length < 20;
                           return (
                             <g
                               key={candidate.id}
@@ -4846,15 +4927,20 @@ export default function App() {
                               tabIndex={isSelectable ? 0 : undefined}
                               aria-label={isSelectMode ? isValidSelectFace ? `Enroll ${candidate.id}` : `${candidate.label}; face cannot be enrolled` : undefined}
                               onClick={() => isSelectable && startFaceSelectEnrollment(candidate.id)}
+                              onMouseEnter={() => isSelectable && setHoveredFaceCandidateId(candidate.id)}
+                              onMouseLeave={() => setHoveredFaceCandidateId((current) => current === candidate.id ? null : current)}
+                              onFocus={() => isSelectable && setHoveredFaceCandidateId(candidate.id)}
+                              onBlur={() => setHoveredFaceCandidateId((current) => current === candidate.id ? null : current)}
                               onKeyDown={(event) => {
                                 if (isSelectable && (event.key === "Enter" || event.key === " ")) {
                                   event.preventDefault();
                                   startFaceSelectEnrollment(candidate.id);
                                 }
                               }}
-                              style={{ cursor: isSelectable ? "pointer" : "default", pointerEvents: isSelectMode ? "all" : "auto", opacity: faceSelectFlow.stage === "restoring" && isSelected ? 0.7 : 1 }}
+                              style={{ cursor: isSelectable ? "pointer" : "default", pointerEvents: isSelectMode ? "all" : "auto", opacity: faceSelectFlow.stage === "restoring" && isSelected ? 0.7 : 1, filter: isHovered ? "drop-shadow(0 0 8px rgba(30,155,240,0.9))" : "none", transition: "filter 160ms ease" }}
                             >
-                              <rect x={x} y={y} width={size} height={size} fill={isSelectMode ? "rgba(23,145,236,0.001)" : "none"} stroke={color} strokeWidth="5" vectorEffect="non-scaling-stroke" />
+                              {shouldPulse && <rect className="aver-face-select-pulse" x={x - 7} y={y - 7} width={size + 14} height={size + 14} fill="none" stroke={T.blue} vectorEffect="non-scaling-stroke" />}
+                              <rect x={x} y={y} width={size} height={size} fill={isHovered ? "rgba(23,145,236,0.13)" : isSelectMode ? "rgba(23,145,236,0.001)" : "none"} stroke={color} strokeWidth={isHovered ? "8" : "5"} vectorEffect="non-scaling-stroke" />
                               <rect x={x} y={Math.max(0, y - 30)} width={Math.max(96, label.length * 15)} height="30" fill={color} opacity="0.94" />
                               <text x={x + 9} y={Math.max(21, y - 9)} fill="#fff" fontSize="20" fontWeight="700" fontFamily={fUI}>{label}</text>
                             </g>
@@ -4863,6 +4949,20 @@ export default function App() {
                       </svg>
                     ) : (
                       <div style={{ position: "absolute", inset: 0, backgroundImage: "url(meeting_room.png)", backgroundSize: "cover", backgroundRepeat: "no-repeat", backgroundPosition: "center", transform: `translate(${ptz.pan}%, ${ptz.tilt}%) scale(${ptz.zoom * 1.65})`, transition: "transform 0.1s ease-out" }} />
+                    )}
+                    {trk.tab === "face" && trk.faceEnrollmentMode === "all" && faceBatchCoachmarkVisible && (
+                      <div id="aver-face-enroll-all-coachmark" role="status" aria-live="polite" style={{ position: "absolute", top: 12, left: "50%", transform: "translateX(-50%)", zIndex: 4, minHeight: 36, maxWidth: "calc(100% - 28px)", boxSizing: "border-box", padding: "7px 9px 7px 12px", display: "flex", alignItems: "center", gap: 8, borderRadius: 7, border: "1px solid rgba(30,155,240,0.58)", background: "rgba(8,12,17,0.92)", color: "#fff", boxShadow: "0 8px 24px rgba(0,0,0,0.38)", fontSize: 12.5, fontWeight: 600, whiteSpace: "nowrap" }}>
+                        <span aria-hidden="true" style={{ color: T.blue, fontSize: 16, lineHeight: 1 }}>☝</span>
+                        <span>Use Enroll All Faces to add every eligible face</span>
+                        <button id="aver-face-enroll-all-coachmark-dismiss-button" type="button" aria-label="Dismiss enroll all faces tip" onClick={() => { setFaceBatchCoachmarkVisible(false); setFaceBatchCoachmarkDismissed(true); }} style={{ width: 22, height: 22, padding: 0, marginLeft: 2, display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: 4, border: "none", background: "transparent", color: T.dim, fontFamily: fUI, fontSize: 16, cursor: "pointer" }}>×</button>
+                      </div>
+                    )}
+                    {trk.tab === "face" && trk.faceEnrollmentMode === "select" && faceSelectCoachmarkVisible && (
+                      <div id="aver-face-select-coachmark" role="status" aria-live="polite" style={{ position: "absolute", top: 12, left: "50%", transform: "translateX(-50%)", zIndex: 4, minHeight: 36, maxWidth: "calc(100% - 28px)", boxSizing: "border-box", padding: "7px 9px 7px 12px", display: "flex", alignItems: "center", gap: 8, borderRadius: 7, border: "1px solid rgba(30,155,240,0.58)", background: "rgba(8,12,17,0.92)", color: "#fff", boxShadow: "0 8px 24px rgba(0,0,0,0.38)", fontSize: 12.5, fontWeight: 600, whiteSpace: "nowrap" }}>
+                        <span aria-hidden="true" style={{ color: T.blue, fontSize: 16, lineHeight: 1 }}>☝</span>
+                        <span>Select a blue face to enroll</span>
+                        <button id="aver-face-select-coachmark-dismiss-button" type="button" aria-label="Dismiss face selection tip" onClick={() => { setFaceSelectCoachmarkVisible(false); setFaceSelectCoachmarkDismissed(true); }} style={{ width: 22, height: 22, padding: 0, marginLeft: 2, display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: 4, border: "none", background: "transparent", color: T.dim, fontFamily: fUI, fontSize: 16, cursor: "pointer" }}>×</button>
+                      </div>
                     )}
                     {trk.tab === "face" && trk.faceCaptureState === "loading" && (
                       <div id="aver-face-enrollment-loading" role="status" aria-live="polite" style={{ position: "absolute", inset: 0, background: "rgba(5,7,9,0.68)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, color: "#fff", zIndex: 2 }}>
@@ -5101,6 +5201,7 @@ export default function App() {
                       {trk.faceEnrollmentMode === "all" && (
                         <button
                           id="aver-face-enroll-all-button"
+                          ref={faceEnrollAllButtonRef}
                           onClick={startFaceBatchEnrollment}
                           disabled={trk.faceCaptureState === "loading" || trk.enrolledFaces.length >= 20}
                           style={{ ...primaryBtn, width: "100%", padding: "8px 8px", opacity: trk.faceCaptureState === "loading" || trk.enrolledFaces.length >= 20 ? 0.48 : 1, cursor: trk.faceCaptureState === "loading" || trk.enrolledFaces.length >= 20 ? "not-allowed" : "pointer" }}
@@ -5231,6 +5332,31 @@ export default function App() {
                       )}
                     </div>
                   </div>
+                  {faceEnrollmentIntroOpen && faceEnrollmentGuideTarget && (() => {
+                    const guidePadding = 10;
+                    const viewportWidth = window.innerWidth;
+                    const viewportHeight = window.innerHeight;
+                    const left = Math.max(0, faceEnrollmentGuideTarget.left - guidePadding);
+                    const top = Math.max(0, faceEnrollmentGuideTarget.top - guidePadding);
+                    const right = Math.min(viewportWidth, faceEnrollmentGuideTarget.left + faceEnrollmentGuideTarget.width + guidePadding);
+                    const bottom = Math.min(viewportHeight, faceEnrollmentGuideTarget.top + faceEnrollmentGuideTarget.height + guidePadding);
+                    const spotlightWidth = Math.max(0, right - left);
+                    const spotlightHeight = Math.max(0, bottom - top);
+                    const mask = { position: "fixed", zIndex: 70, background: "rgba(0,0,0,0.80)", pointerEvents: "none" };
+                    return (
+                      <div id="aver-face-enrollment-first-run-guide" aria-label="Face enrollment first-step guide" style={{ position: "fixed", inset: 0, zIndex: 70, pointerEvents: "none" }}>
+                        <div style={{ ...mask, left: 0, top: 0, width: "100vw", height: top }} />
+                        <div style={{ ...mask, left: 0, top, width: left, height: spotlightHeight }} />
+                        <div style={{ ...mask, left: right, top, right: 0, height: spotlightHeight }} />
+                        <div style={{ ...mask, left: 0, top: bottom, width: "100vw", bottom: 0 }} />
+                        <div id="aver-face-enrollment-guide-spotlight" style={{ position: "fixed", zIndex: 71, left, top, width: spotlightWidth, height: spotlightHeight, borderRadius: 8, border: `2px solid ${T.blue}`, boxSizing: "border-box", boxShadow: "0 0 0 3px rgba(30,155,240,0.22), 0 0 24px rgba(30,155,240,0.55)", pointerEvents: "none" }} />
+                        <div id="aver-face-enrollment-guide-message" role="status" aria-live="polite" style={{ position: "fixed", zIndex: 71, left: left + spotlightWidth / 2, top: Math.max(14, top - 73), transform: "translateX(-50%)", width: "max-content", maxWidth: "min(300px, calc(100vw - 28px))", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, color: "#fff", fontFamily: fUI, textAlign: "center", pointerEvents: "none" }}>
+                          <span style={{ padding: "7px 11px", borderRadius: 7, border: "1px solid rgba(30,155,240,0.72)", background: "rgba(8,12,17,0.96)", boxShadow: "0 8px 20px rgba(0,0,0,0.45)", fontSize: 12.5, fontWeight: 700 }}>Start here: enroll detected faces</span>
+                          <span className="aver-face-enrollment-guide-arrow" aria-hidden="true" style={{ color: T.blue, fontSize: 30, lineHeight: 0.8, textShadow: "0 0 12px rgba(30,155,240,0.85)" }}>↓</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                   {faceEnrollmentTourOpen && (
                     <div id="aver-face-enrollment-tour-modal" role="dialog" aria-modal="true" aria-labelledby="aver-face-enrollment-tour-title" style={{ position: "fixed", inset: 0, zIndex: 75, padding: 24, background: "rgba(0,0,0,0.72)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <div id="aver-face-enrollment-tour-dialog" style={{ width: "min(590px, calc(100vw - 48px))", overflow: "hidden", borderRadius: 10, border: `1px solid ${T.line2}`, background: "#101216", boxShadow: "0 22px 64px rgba(0,0,0,0.58)" }}>
