@@ -1574,8 +1574,42 @@ export default function App() {
     tab: "control", focusMode: "af", panSpeed: 7, tiltSpeed: 7, zoomSpeed: "high",
     focusNear: "1.5m", afMode: "Continuous AF", digitalZoom: false, digitalZoomLimit: 12,
     relativeZoom: false, presetAffects: false,
+    presetSaveNumber: "0", presetVideoFreeze: false, presetAccuracy: true,
+    presetSpeed: 50, selectedQuickCall: null, presetLayoutVariant: "separate",
+    presetNames: Array.from({ length: 20 }, (_, index) => `Preset${index}`),
+    savedPresetIds: [0, 1],
   });
   const updLive = (k, v) => setLive((c) => ({ ...c, [k]: v }));
+  const [editingLivePresetId, setEditingLivePresetId] = useState(null);
+  const [livePresetNameDraft, setLivePresetNameDraft] = useState("");
+  const beginLivePresetRename = (presetId) => {
+    setEditingLivePresetId(presetId);
+    setLivePresetNameDraft(live.presetNames[presetId]);
+  };
+  const commitLivePresetRename = () => {
+    if (editingLivePresetId == null) return;
+    const nextName = livePresetNameDraft.trim() || `Preset${editingLivePresetId}`;
+    setLive((current) => ({
+      ...current,
+      presetNames: current.presetNames.map((name, index) => index === editingLivePresetId ? nextName : name),
+    }));
+    setEditingLivePresetId(null);
+    setLivePresetNameDraft("");
+  };
+  const saveLivePreset = () => {
+    const presetId = Number.parseInt(live.presetSaveNumber, 10);
+    if (!Number.isInteger(presetId) || presetId < 0 || presetId > 19) {
+      setToast("Choose a preset number from 0 to 19");
+      return;
+    }
+    setLive((current) => ({
+      ...current,
+      savedPresetIds: current.savedPresetIds.includes(presetId)
+        ? current.savedPresetIds
+        : [...current.savedPresetIds, presetId].sort((a, b) => a - b),
+    }));
+    setToast(`Preset ${presetId} saved`);
+  };
 
   // PTZ 控制狀態 (Live View 與 Tracking Settings 連動)
   const [ptz, setPtz] = useState({ pan: 0, tilt: 0, zoom: 1.0 });
@@ -3895,8 +3929,13 @@ export default function App() {
           <div id="aver-live-view-wrapper" style={{ display: "flex", flexDirection: "column", gap: SP[2], width: "min(calc(75vw - 40px), 100%)", marginLeft: "max(0px, calc(16.6667vw - 225.33px))", height: "100%", minHeight: 0 }}>
             {(() => {
               const sqStyle = (active) => ({ width: 42, height: 42, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", borderRadius: 8, border: `1px solid ${active ? T.blue : T.line2}`, background: active ? T.blue : T.panel2, color: active ? "#fff" : T.text, fontSize: 17, fontFamily: fUI });
+              const presetPtzSqStyle = { ...sqStyle(false), width: 52, height: 52, fontSize: 20 };
               const sec = { border: `1px solid ${T.line}`, borderRadius: 8, padding: "10px 12px", background: "rgba(0,0,0,0.12)", boxSizing: "border-box" };
               const secTitle = { fontSize: 12, color: T.faint, fontWeight: 600, marginBottom: 8 };
+              const presetSection = { background: "rgba(255,255,255,0.035)", border: `1px solid ${T.line}`, borderRadius: 6, overflow: "hidden", boxSizing: "border-box" };
+              const presetHeader = { height: 25, padding: "0 8px", display: "flex", alignItems: "center", background: "rgba(255,255,255,0.07)", borderBottom: `1px solid ${T.line}`, color: T.text, fontSize: 12, fontWeight: 600, boxSizing: "border-box" };
+              const presetInput = { height: 30, minWidth: 0, boxSizing: "border-box", padding: "0 8px", borderRadius: 4, border: `1px solid ${T.line2}`, background: "#101216", color: T.text, fontFamily: fMono, fontSize: 13 };
+              const presetButton = { height: 30, padding: "0 14px", boxSizing: "border-box", cursor: "pointer", borderRadius: 4, border: `1px solid ${T.line2}`, background: "#101216", color: T.text, fontFamily: fUI, fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" };
               return (
                 <>
                   {/* 預覽畫面外層 container: 填滿剩餘高度與寬度 */}
@@ -3917,6 +3956,16 @@ export default function App() {
                           {lb}
                         </button>
                       ))}
+                      {live.tab === "preset" && (
+                        <button
+                          id="aver-live-preset-layout-toggle"
+                          type="button"
+                          onClick={() => updLive("presetLayoutVariant", live.presetLayoutVariant === "separate" ? "integrated" : "separate")}
+                          style={{ margin: "4px 7px 4px auto", minWidth: 154, padding: "0 11px", borderRadius: 5, border: `1px solid ${T.line2}`, background: "#101216", color: T.text, fontFamily: fUI, fontSize: 11.5, fontWeight: 600, cursor: "pointer" }}
+                        >
+                          ⇄ {live.presetLayoutVariant === "separate" ? "Layout A · Separate" : "Layout B · Integrated"}
+                        </button>
+                      )}
                     </div>
 
                     {live.tab === "control" ? (
@@ -3999,18 +4048,134 @@ export default function App() {
                       </div>
                     ) : (
                       /* ===== Preset(預設位置)===== */
-                      <div id="aver-live-preset-subpanel" style={{ padding: "12px 16px", flex: 1, minHeight: 0, overflow: "hidden", boxSizing: "border-box" }}>
-                        <div style={{ fontSize: 13, color: T.dim, marginBottom: 12 }}>Click preset to call; long press or click "Set" to save current PTZ/Focus status to the preset.</div>
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
-                          {Array.from({ length: 9 }, (_, i) => i + 1).map((n) => (
-                            <div key={n} style={{ ...sec, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                              <span style={{ fontSize: 14, fontWeight: 700, color: T.text, fontFamily: fMono }}>Preset {n}</span>
-                              <div style={{ display: "flex", gap: 6 }}>
-                                <button id={`aver-live-btn-preset-call-${n}`} style={{ padding: "5px 12px", fontSize: 12, cursor: "pointer", borderRadius: 5, border: "none", background: T.blue, color: "#fff", fontFamily: fUI }}>Call</button>
-                                <button id={`aver-live-btn-preset-set-${n}`} style={{ padding: "5px 12px", fontSize: 12, cursor: "pointer", borderRadius: 5, border: `1px solid ${T.line2}`, background: T.panel2, color: T.dim, fontFamily: fUI }}>Set</button>
+                      <div id="aver-live-preset-subpanel" style={{ padding: "10px 12px", flex: 1, minHeight: 0, overflow: "auto", boxSizing: "border-box" }}>
+                        <div style={{ display: "flex", gap: 10, minWidth: 0, minHeight: "100%" }}>
+                          <div id="aver-live-preset-ptz-control" style={{ ...sec, flex: "1 1 0", minWidth: 260, minHeight: 190, padding: "14px 12px", display: "flex", alignItems: "center", justifyContent: "space-evenly", gap: 12, alignSelf: "stretch" }}>
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 52px)", gridTemplateRows: "repeat(3, 52px)", gap: 7 }}>
+                              <span />
+                              <button id="aver-live-preset-ptz-up-button" type="button" aria-label="Preset panel tilt up" onClick={() => handlePtz("up")} style={presetPtzSqStyle}>▲</button>
+                              <span />
+                              <button id="aver-live-preset-ptz-left-button" type="button" aria-label="Preset panel pan left" onClick={() => handlePtz("left")} style={presetPtzSqStyle}>◀</button>
+                              <button id="aver-live-preset-ptz-home-button" type="button" aria-label="Preset panel reset PTZ view" onClick={() => handlePtz("home")} style={{ ...presetPtzSqStyle, borderRadius: "50%", fontSize: 17 }}>⌂</button>
+                              <button id="aver-live-preset-ptz-right-button" type="button" aria-label="Preset panel pan right" onClick={() => handlePtz("right")} style={presetPtzSqStyle}>▶</button>
+                              <span />
+                              <button id="aver-live-preset-ptz-down-button" type="button" aria-label="Preset panel tilt down" onClick={() => handlePtz("down")} style={presetPtzSqStyle}>▼</button>
+                              <span />
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                              <button id="aver-live-preset-ptz-zoom-in-button" type="button" aria-label="Preset panel zoom in" onClick={() => handlePtz("zoom_in")} style={presetPtzSqStyle}>＋</button>
+                              <span style={{ fontSize: 12, color: T.faint }}>Zoom</span>
+                              <button id="aver-live-preset-ptz-zoom-out-button" type="button" aria-label="Preset panel zoom out" onClick={() => handlePtz("zoom_out")} style={presetPtzSqStyle}>－</button>
+                            </div>
+                          </div>
+                          {live.presetLayoutVariant === "separate" && (
+                          <div id="aver-live-preset-save-options" style={{ flex: "1.2 1 0", minWidth: 218, display: "flex", flexDirection: "column", gap: 6 }}>
+                            <div style={presetSection}>
+                              <div style={presetHeader}>Save Preset</div>
+                              <div style={{ display: "flex", gap: 7, padding: 7 }}>
+                                <input id="aver-live-preset-save-number" aria-label="Save preset number" type="number" min="0" max="19" value={live.presetSaveNumber} onChange={(e) => updLive("presetSaveNumber", e.target.value)} style={{ ...presetInput, flex: 1 }} />
+                                <button id="aver-live-preset-save-button" type="button" onClick={saveLivePreset} style={presetButton}>Save</button>
                               </div>
                             </div>
-                          ))}
+                            <label id="aver-live-preset-video-freeze-option" style={{ ...presetSection, minHeight: 34, padding: "0 9px", display: "flex", alignItems: "center", gap: 7, cursor: "pointer", color: T.text, fontSize: 12 }}>
+                              <input type="checkbox" checked={live.presetVideoFreeze} onChange={(e) => updLive("presetVideoFreeze", e.target.checked)} />
+                              <span>Video Freeze while Preset</span>
+                            </label>
+                            <label id="aver-live-preset-accuracy-option" style={{ ...presetSection, minHeight: 34, padding: "0 9px", display: "flex", alignItems: "center", gap: 7, cursor: "pointer", color: T.text, fontSize: 12 }}>
+                              <input type="checkbox" checked={live.presetAccuracy} onChange={(e) => updLive("presetAccuracy", e.target.checked)} />
+                              <span>Preset Accuracy</span>
+                            </label>
+                            <div id="aver-live-preset-speed-option" style={presetSection}>
+                              <div style={{ ...presetHeader, justifyContent: "space-between" }}><span>Preset Speed</span><span style={{ color: T.text, fontFamily: fMono }}>{live.presetSpeed}</span></div>
+                              <div style={{ padding: "7px 10px 8px" }}>
+                                <input id="aver-live-preset-speed-slider" aria-label="Preset speed" type="range" min="5" max="200" value={live.presetSpeed} onChange={(e) => updLive("presetSpeed", Number(e.target.value))} style={{ width: "100%", accentColor: T.blue }} />
+                                <div style={{ display: "flex", justifyContent: "space-between", color: T.faint, fontSize: 11, marginTop: 2 }}><span>5</span><span>200</span></div>
+                              </div>
+                            </div>
+                          </div>
+                          )}
+                          <div id="aver-live-preset-load-options" style={{ ...presetSection, flex: live.presetLayoutVariant === "integrated" ? "3.2 1 0" : "2 1 0", minWidth: 360, display: "flex", flexDirection: "column" }}>
+                            <div style={presetHeader}>Preset Library</div>
+                            {live.presetLayoutVariant === "integrated" && (
+                              <div id="aver-live-preset-integrated-save-panel" style={{ padding: "7px", display: "grid", gridTemplateColumns: "minmax(185px, 1.25fr) auto auto minmax(150px, 1fr)", alignItems: "center", gap: 9, borderBottom: `1px solid ${T.line}`, background: "rgba(255,255,255,0.018)" }}>
+                                <div>
+                                  <div style={{ marginBottom: 4, color: T.faint, fontSize: 10.5, fontWeight: 600 }}>Save Preset</div>
+                                  <div style={{ display: "flex", gap: 6 }}>
+                                    <input id="aver-live-preset-integrated-save-number" aria-label="Integrated layout save preset number" type="number" min="0" max="19" value={live.presetSaveNumber} onChange={(event) => updLive("presetSaveNumber", event.target.value)} style={{ ...presetInput, height: 27, flex: 1 }} />
+                                    <button id="aver-live-preset-integrated-save-button" type="button" onClick={saveLivePreset} style={{ ...presetButton, height: 27, padding: "0 11px" }}>Save</button>
+                                  </div>
+                                </div>
+                                <label id="aver-live-preset-integrated-video-freeze-option" style={{ display: "flex", alignItems: "center", gap: 6, color: T.text, fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>
+                                  <input type="checkbox" checked={live.presetVideoFreeze} onChange={(event) => updLive("presetVideoFreeze", event.target.checked)} />
+                                  <span>Video Freeze</span>
+                                </label>
+                                <label id="aver-live-preset-integrated-accuracy-option" style={{ display: "flex", alignItems: "center", gap: 6, color: T.text, fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>
+                                  <input type="checkbox" checked={live.presetAccuracy} onChange={(event) => updLive("presetAccuracy", event.target.checked)} />
+                                  <span>Preset Accuracy</span>
+                                </label>
+                                <div id="aver-live-preset-integrated-speed-option" style={{ minWidth: 0 }}>
+                                  <div style={{ display: "flex", justifyContent: "space-between", color: T.faint, fontSize: 10.5, fontWeight: 600 }}><span>Preset Speed</span><span style={{ color: T.text, fontFamily: fMono }}>{live.presetSpeed}</span></div>
+                                  <input aria-label="Integrated layout preset speed" type="range" min="5" max="200" value={live.presetSpeed} onChange={(event) => updLive("presetSpeed", Number(event.target.value))} style={{ width: "100%", margin: "5px 0 0", accentColor: T.blue }} />
+                                </div>
+                              </div>
+                            )}
+                            <div style={{ padding: "6px 7px 7px", minHeight: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+                              <div style={{ minHeight: 25, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                                <span style={{ minWidth: 0, color: T.faint, fontSize: 11.5, lineHeight: 1.35 }}>Select a preset card to load it automatically.</span>
+                                <button id="aver-live-preset-edit-scenes-button" type="button" onClick={() => setToast("Edit Scenes is ready")} style={{ ...presetButton, height: 25, padding: "0 10px", flexShrink: 0 }}>Edit Scenes</button>
+                              </div>
+                              <div id="aver-live-preset-card-scroll" style={{ minHeight: 0, maxHeight: live.presetLayoutVariant === "integrated" ? 139 : 198, overflowY: "auto", paddingRight: 3, scrollbarColor: `${T.line2} transparent` }}>
+                                <div id="aver-live-preset-quick-call-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(108px, 1fr))", gap: 7 }}>
+                                  {Array.from({ length: 20 }, (_, n) => {
+                                    const saved = live.savedPresetIds.includes(n);
+                                    const selected = saved && live.selectedQuickCall === n;
+                                    const presetName = live.presetNames[n];
+                                    const thumbX = 15 + (n % 5) * 17;
+                                    const thumbY = 20 + (Math.floor(n / 5) % 4) * 19;
+                                    const thumbnailImage = n === 1 ? FACE_ENROLLMENT_DEMO_IMAGE : "meeting_room.png";
+                                    return (
+                                      <div id={`aver-live-preset-card-${n}`} key={n} style={{ minWidth: 0, overflow: "hidden", borderRadius: 5, border: `${selected ? 2 : 1}px solid ${selected ? T.blue : T.line}`, background: selected ? "rgba(23,145,236,0.12)" : "#101216", boxShadow: selected ? "0 0 0 1px rgba(23,145,236,0.30)" : "none" }}>
+                                        <button
+                                          id={`aver-live-preset-thumbnail-${n}`}
+                                          type="button"
+                                          aria-label={saved ? `Load ${presetName}` : `Preset ${n} is empty`}
+                                          aria-pressed={selected}
+                                          disabled={!saved}
+                                          onClick={() => { if (saved) { updLive("selectedQuickCall", n); setToast(`${presetName} loaded`); } }}
+                                          style={{ position: "relative", width: "100%", aspectRatio: "16 / 9", display: "block", padding: 0, cursor: saved ? "pointer" : "default", border: "none", borderBottom: `1px solid ${T.line}`, backgroundImage: saved ? `linear-gradient(rgba(0,0,0,0.04), rgba(0,0,0,0.16)), url(${thumbnailImage})` : "linear-gradient(145deg, #181c22, #0d1014)", backgroundSize: saved ? n === 1 ? "cover" : "175%" : "cover", backgroundPosition: saved ? n === 1 ? "center" : `${thumbX}% ${thumbY}%` : "center", backgroundRepeat: "no-repeat" }}
+                                        >
+                                          <span style={{ position: "absolute", left: 5, top: 4, minWidth: 20, height: 18, padding: "0 4px", boxSizing: "border-box", display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: 3, background: "rgba(0,0,0,0.72)", color: "#fff", fontFamily: fMono, fontSize: 10, fontWeight: 700 }}>{String(n).padStart(2, "0")}</span>
+                                          {!saved && <span aria-hidden="true" style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: T.faint, fontFamily: fUI, fontSize: 10, fontWeight: 600 }}>None</span>}
+                                        </button>
+                                        {!saved ? (
+                                          <div id={`aver-live-preset-empty-name-${n}`} style={{ width: "100%", height: 27, boxSizing: "border-box", padding: "0 6px", display: "flex", alignItems: "center", color: T.faint, fontFamily: fUI, fontSize: 11.5 }}>{presetName}</div>
+                                        ) : editingLivePresetId === n ? (
+                                          <input
+                                            id={`aver-live-preset-name-input-${n}`}
+                                            aria-label={`Rename preset ${n}`}
+                                            autoFocus
+                                            value={livePresetNameDraft}
+                                            maxLength={24}
+                                            onChange={(event) => setLivePresetNameDraft(event.target.value)}
+                                            onBlur={commitLivePresetRename}
+                                            onKeyDown={(event) => {
+                                              if (event.key === "Enter") commitLivePresetRename();
+                                              if (event.key === "Escape") { setEditingLivePresetId(null); setLivePresetNameDraft(""); }
+                                            }}
+                                            style={{ width: "100%", height: 27, boxSizing: "border-box", padding: "0 6px", border: `1px solid ${T.blue}`, background: "#090b0f", color: T.text, fontFamily: fUI, fontSize: 11.5, outline: "none" }}
+                                          />
+                                        ) : (
+                                          <button id={`aver-live-preset-name-${n}`} type="button" title="Click name to edit" onClick={() => beginLivePresetRename(n)} style={{ width: "100%", height: 27, minWidth: 0, padding: "0 6px", display: "flex", alignItems: "center", cursor: "text", border: "none", background: "transparent", color: selected ? "#fff" : T.text, fontFamily: fUI, fontSize: 11.5, textAlign: "left" }}>
+                                            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{presetName}</span>
+                                          </button>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     )}
