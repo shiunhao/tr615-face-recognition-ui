@@ -1240,7 +1240,7 @@ export default function App() {
     peopleSize: "Upper Body", placement: "Center", height: "Height1",
     effectiveArea: false, autoZoom: true, autoTilt: true, autoZoomPreset: "Preset 1",
     multiPresenterTracking: false, multiPresenter: "off", shieldZone: false,
-    zoneId: "Zone 1", zoneResponse: "Auto", zoneTransition: 5, zoneEnabled: true,
+    zoneId: "Zone 1", zoneResponse: "Auto", zoneTransition: 5, zoneEnabled: true, zoneTrackingPoint: "Preset 6",
     hybridPriority: "Presenter", hybridFallback: "Zone 1", hybridHoldTime: 5,
     framingMode: "Auto Framing", framingSize: "Medium", framingSpeed: 5, groupFraming: true,
     gestureEnabled: false, gestureTimeout: 5, gestureFeedback: true,
@@ -1578,6 +1578,11 @@ export default function App() {
     presetSpeed: 50, selectedQuickCall: null, presetLayoutVariant: "separate",
     presetNames: Array.from({ length: 20 }, (_, index) => `Preset${index}`),
     savedPresetIds: [0, 1],
+    activePreviewImage: "meeting_room.png",
+    presetSnapshots: {
+      0: { image: "meeting_room.png", pan: 0, tilt: 0, zoom: 1 },
+      1: { image: FACE_ENROLLMENT_DEMO_IMAGE, pan: 0, tilt: 0, zoom: 1 },
+    },
   });
   const updLive = (k, v) => setLive((c) => ({ ...c, [k]: v }));
   const [editingLivePresetId, setEditingLivePresetId] = useState(null);
@@ -1602,13 +1607,23 @@ export default function App() {
       setToast("Choose a preset number from 0 to 19");
       return;
     }
+    const isOverwrite = Boolean(live.presetSnapshots[presetId]);
     setLive((current) => ({
       ...current,
       savedPresetIds: current.savedPresetIds.includes(presetId)
         ? current.savedPresetIds
         : [...current.savedPresetIds, presetId].sort((a, b) => a - b),
+      presetSnapshots: {
+        ...current.presetSnapshots,
+        [presetId]: {
+          image: current.activePreviewImage,
+          pan: ptz.pan,
+          tilt: ptz.tilt,
+          zoom: ptz.zoom,
+        },
+      },
     }));
-    setToast(`Preset ${presetId} saved`);
+    setToast(`Preset ${presetId} ${isOverwrite ? "overwritten" : "saved"}`);
   };
 
   // PTZ 控制狀態 (Live View 與 Tracking Settings 連動)
@@ -1656,6 +1671,17 @@ export default function App() {
 
       return { pan: nextPan, tilt: nextTilt, zoom: nextZoom };
     });
+  };
+  const loadLivePreset = (presetId) => {
+    const snapshot = live.presetSnapshots[presetId];
+    if (!snapshot) return;
+    setLive((current) => ({
+      ...current,
+      selectedQuickCall: presetId,
+      activePreviewImage: snapshot.image,
+    }));
+    setPtz({ pan: snapshot.pan, tilt: snapshot.tilt, zoom: snapshot.zoom });
+    setToast(`${live.presetNames[presetId]} loaded`);
   };
 
   // Tracking Control (側邊欄)
@@ -3359,20 +3385,36 @@ export default function App() {
         }
 
         /* 佈局切換變形過渡動畫 */
-        @keyframes averClassicEntrance {
-          0% { opacity: 0; transform: scale(0.97) translateY(12px); filter: blur(4px); }
-          100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); }
-        }
-        .aver-classic-layout-entrance {
-          animation: averClassicEntrance 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
-        }
-
-        @keyframes averCinemaEntrance {
-          0% { opacity: 0; transform: scale(1.03) translateY(-8px); filter: blur(4px); }
-          100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); }
-        }
-        .aver-cinema-layout-entrance {
-          animation: averCinemaEntrance 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+        /* Keep Live View usable on narrower laptop screens without changing the
+           desktop 1 : 1.2 : 2 preset layout. */
+        @media (max-width: 1120px) {
+          #aver-live-control-panel {
+            flex-basis: 340px !important;
+            height: 340px !important;
+          }
+          #aver-live-preset-subpanel {
+            overflow-x: hidden !important;
+            overflow-y: auto !important;
+          }
+          #aver-live-preset-layout-row[data-layout="separate"] {
+            flex-wrap: wrap !important;
+            align-content: flex-start !important;
+            height: auto !important;
+          }
+          #aver-live-preset-layout-row[data-layout="separate"] #aver-live-preset-ptz-control {
+            flex: 1 1 260px !important;
+            align-self: auto !important;
+          }
+          #aver-live-preset-layout-row[data-layout="separate"] #aver-live-preset-save-options {
+            flex: 1.2 1 218px !important;
+          }
+          #aver-live-preset-layout-row[data-layout="separate"] #aver-live-preset-load-options {
+            flex: 1 1 100% !important;
+            width: 100% !important;
+          }
+          #aver-live-preset-layout-row[data-layout="integrated"] #aver-live-preset-integrated-save-panel {
+            min-width: 150px !important;
+          }
         }
 
         /* 區塊切換（Matrix / Multi-Matrix / Knee / Black Level）過渡動畫 */
@@ -3942,7 +3984,7 @@ export default function App() {
                   <div id="aver-live-preview-panel" style={{ position: "relative", borderRadius: 10, overflow: "hidden", border: `1px solid ${T.line}`, width: "100%", flex: 1, minHeight: 0, background: "#000", display: "flex", alignItems: "center", justifyContent: "center", boxSizing: "border-box" }}>
                     {/* 內層 16:9 預覽區：高度 100% 填滿，寬度依 16:9 比例自適應，於左右留下黑邊 */}
                     <div style={{ position: "relative", height: "100%", width: "auto", aspectRatio: "16 / 9", overflow: "hidden" }}>
-                      <div style={{ position: "absolute", inset: 0, backgroundImage: "url(meeting_room.png)", backgroundSize: "cover", backgroundPosition: "center", transform: `translate(${ptz.pan}%, ${ptz.tilt}%) scale(${ptz.zoom * 1.65})`, transition: "transform 0.1s ease-out" }} />
+                      <div id="aver-live-preset-active-preview" data-preset-id={live.selectedQuickCall ?? 0} style={{ position: "absolute", inset: 0, backgroundImage: `url(${live.activePreviewImage})`, backgroundSize: "cover", backgroundPosition: "center", transform: `translate(${ptz.pan}%, ${ptz.tilt}%) scale(${ptz.zoom * 1.65})`, transition: "transform 0.1s ease-out, opacity 0.18s ease" }} />
                     </div>
                   </div>
 
@@ -4049,7 +4091,7 @@ export default function App() {
                     ) : (
                       /* ===== Preset(預設位置)===== */
                       <div id="aver-live-preset-subpanel" style={{ padding: "10px 12px", flex: 1, minHeight: 0, overflow: "auto", boxSizing: "border-box" }}>
-                        <div style={{ display: "flex", gap: 10, minWidth: 0, minHeight: "100%" }}>
+                        <div id="aver-live-preset-layout-row" data-layout={live.presetLayoutVariant} style={{ display: "flex", gap: 10, minWidth: 0, height: "100%", minHeight: 0 }}>
                           <div id="aver-live-preset-ptz-control" style={{ ...sec, flex: "1 1 0", minWidth: 260, minHeight: 190, padding: "14px 12px", display: "flex", alignItems: "center", justifyContent: "space-evenly", gap: 12, alignSelf: "stretch" }}>
                             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 52px)", gridTemplateRows: "repeat(3, 52px)", gap: 7 }}>
                               <span />
@@ -4096,43 +4138,43 @@ export default function App() {
                           )}
                           <div id="aver-live-preset-load-options" style={{ ...presetSection, flex: live.presetLayoutVariant === "integrated" ? "3.2 1 0" : "2 1 0", minWidth: 360, display: "flex", flexDirection: "column" }}>
                             <div style={presetHeader}>Preset Library</div>
+                            <div id="aver-live-preset-library-body" data-layout={live.presetLayoutVariant} style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "stretch", gap: live.presetLayoutVariant === "integrated" ? 8 : 0 }}>
                             {live.presetLayoutVariant === "integrated" && (
-                              <div id="aver-live-preset-integrated-save-panel" style={{ padding: "7px", display: "grid", gridTemplateColumns: "minmax(185px, 1.25fr) auto auto minmax(150px, 1fr)", alignItems: "center", gap: 9, borderBottom: `1px solid ${T.line}`, background: "rgba(255,255,255,0.018)" }}>
-                                <div>
+                              <div id="aver-live-preset-integrated-save-panel" style={{ flex: "1 1 0", minWidth: 170, padding: 7, display: "flex", flexDirection: "column", justifyContent: "center", gap: 6, borderRight: `1px solid ${T.line}`, background: "rgba(255,255,255,0.018)", boxSizing: "border-box" }}>
+                                <div style={{ ...presetSection, padding: 7 }}>
                                   <div style={{ marginBottom: 4, color: T.faint, fontSize: 10.5, fontWeight: 600 }}>Save Preset</div>
                                   <div style={{ display: "flex", gap: 6 }}>
                                     <input id="aver-live-preset-integrated-save-number" aria-label="Integrated layout save preset number" type="number" min="0" max="19" value={live.presetSaveNumber} onChange={(event) => updLive("presetSaveNumber", event.target.value)} style={{ ...presetInput, height: 27, flex: 1 }} />
                                     <button id="aver-live-preset-integrated-save-button" type="button" onClick={saveLivePreset} style={{ ...presetButton, height: 27, padding: "0 11px" }}>Save</button>
                                   </div>
                                 </div>
-                                <label id="aver-live-preset-integrated-video-freeze-option" style={{ display: "flex", alignItems: "center", gap: 6, color: T.text, fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>
+                                <label id="aver-live-preset-integrated-video-freeze-option" style={{ ...presetSection, minHeight: 32, padding: "0 8px", display: "flex", alignItems: "center", gap: 6, color: T.text, fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>
                                   <input type="checkbox" checked={live.presetVideoFreeze} onChange={(event) => updLive("presetVideoFreeze", event.target.checked)} />
                                   <span>Video Freeze</span>
                                 </label>
-                                <label id="aver-live-preset-integrated-accuracy-option" style={{ display: "flex", alignItems: "center", gap: 6, color: T.text, fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>
+                                <label id="aver-live-preset-integrated-accuracy-option" style={{ ...presetSection, minHeight: 32, padding: "0 8px", display: "flex", alignItems: "center", gap: 6, color: T.text, fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>
                                   <input type="checkbox" checked={live.presetAccuracy} onChange={(event) => updLive("presetAccuracy", event.target.checked)} />
                                   <span>Preset Accuracy</span>
                                 </label>
-                                <div id="aver-live-preset-integrated-speed-option" style={{ minWidth: 0 }}>
+                                <div id="aver-live-preset-integrated-speed-option" style={{ ...presetSection, minWidth: 0, padding: "7px 8px" }}>
                                   <div style={{ display: "flex", justifyContent: "space-between", color: T.faint, fontSize: 10.5, fontWeight: 600 }}><span>Preset Speed</span><span style={{ color: T.text, fontFamily: fMono }}>{live.presetSpeed}</span></div>
                                   <input aria-label="Integrated layout preset speed" type="range" min="5" max="200" value={live.presetSpeed} onChange={(event) => updLive("presetSpeed", Number(event.target.value))} style={{ width: "100%", margin: "5px 0 0", accentColor: T.blue }} />
+                                  <div style={{ display: "flex", justifyContent: "space-between", color: T.faint, fontSize: 10, marginTop: 1 }}><span>5</span><span>200</span></div>
                                 </div>
                               </div>
                             )}
-                            <div style={{ padding: "6px 7px 7px", minHeight: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+                            <div id="aver-live-preset-library-cards-column" style={{ flex: live.presetLayoutVariant === "integrated" ? "3 1 0" : "1 1 0", minWidth: 0, padding: "6px 7px 7px", display: "flex", flexDirection: "column", gap: 6 }}>
                               <div style={{ minHeight: 25, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                                 <span style={{ minWidth: 0, color: T.faint, fontSize: 11.5, lineHeight: 1.35 }}>Select a preset card to load it automatically.</span>
                                 <button id="aver-live-preset-edit-scenes-button" type="button" onClick={() => setToast("Edit Scenes is ready")} style={{ ...presetButton, height: 25, padding: "0 10px", flexShrink: 0 }}>Edit Scenes</button>
                               </div>
-                              <div id="aver-live-preset-card-scroll" style={{ minHeight: 0, maxHeight: live.presetLayoutVariant === "integrated" ? 139 : 198, overflowY: "auto", paddingRight: 3, scrollbarColor: `${T.line2} transparent` }}>
+                              <div id="aver-live-preset-card-scroll" style={{ flex: live.presetLayoutVariant === "integrated" ? 1 : "0 1 auto", minHeight: 0, maxHeight: live.presetLayoutVariant === "integrated" ? "none" : 198, overflowY: "auto", paddingRight: 3, scrollbarColor: `${T.line2} transparent` }}>
                                 <div id="aver-live-preset-quick-call-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(108px, 1fr))", gap: 7 }}>
                                   {Array.from({ length: 20 }, (_, n) => {
-                                    const saved = live.savedPresetIds.includes(n);
+                                    const snapshot = live.presetSnapshots[n];
+                                    const saved = live.savedPresetIds.includes(n) && Boolean(snapshot);
                                     const selected = saved && live.selectedQuickCall === n;
                                     const presetName = live.presetNames[n];
-                                    const thumbX = 15 + (n % 5) * 17;
-                                    const thumbY = 20 + (Math.floor(n / 5) % 4) * 19;
-                                    const thumbnailImage = n === 1 ? FACE_ENROLLMENT_DEMO_IMAGE : "meeting_room.png";
                                     return (
                                       <div id={`aver-live-preset-card-${n}`} key={n} style={{ minWidth: 0, overflow: "hidden", borderRadius: 5, border: `${selected ? 2 : 1}px solid ${selected ? T.blue : T.line}`, background: selected ? "rgba(23,145,236,0.12)" : "#101216", boxShadow: selected ? "0 0 0 1px rgba(23,145,236,0.30)" : "none" }}>
                                         <button
@@ -4141,10 +4183,13 @@ export default function App() {
                                           aria-label={saved ? `Load ${presetName}` : `Preset ${n} is empty`}
                                           aria-pressed={selected}
                                           disabled={!saved}
-                                          onClick={() => { if (saved) { updLive("selectedQuickCall", n); setToast(`${presetName} loaded`); } }}
-                                          style={{ position: "relative", width: "100%", aspectRatio: "16 / 9", display: "block", padding: 0, cursor: saved ? "pointer" : "default", border: "none", borderBottom: `1px solid ${T.line}`, backgroundImage: saved ? `linear-gradient(rgba(0,0,0,0.04), rgba(0,0,0,0.16)), url(${thumbnailImage})` : "linear-gradient(145deg, #181c22, #0d1014)", backgroundSize: saved ? n === 1 ? "cover" : "175%" : "cover", backgroundPosition: saved ? n === 1 ? "center" : `${thumbX}% ${thumbY}%` : "center", backgroundRepeat: "no-repeat" }}
+                                          onClick={() => { if (saved) loadLivePreset(n); }}
+                                          style={{ position: "relative", width: "100%", aspectRatio: "16 / 9", display: "block", overflow: "hidden", padding: 0, cursor: saved ? "pointer" : "default", border: "none", borderBottom: `1px solid ${T.line}`, background: saved ? "#000" : "linear-gradient(145deg, #181c22, #0d1014)" }}
                                         >
-                                          <span style={{ position: "absolute", left: 5, top: 4, minWidth: 20, height: 18, padding: "0 4px", boxSizing: "border-box", display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: 3, background: "rgba(0,0,0,0.72)", color: "#fff", fontFamily: fMono, fontSize: 10, fontWeight: 700 }}>{String(n).padStart(2, "0")}</span>
+                                          {saved && (
+                                            <span aria-hidden="true" style={{ position: "absolute", inset: 0, backgroundImage: `linear-gradient(rgba(0,0,0,0.04), rgba(0,0,0,0.16)), url(${snapshot.image})`, backgroundSize: "cover", backgroundPosition: "center", backgroundRepeat: "no-repeat", transform: `translate(${snapshot.pan}%, ${snapshot.tilt}%) scale(${snapshot.zoom * 1.65})`, transformOrigin: "center" }} />
+                                          )}
+                                          <span style={{ position: "absolute", zIndex: 1, left: 5, top: 4, minWidth: 20, height: 18, padding: "0 4px", boxSizing: "border-box", display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: 3, background: "rgba(0,0,0,0.72)", color: "#fff", fontFamily: fMono, fontSize: 10, fontWeight: 700 }}>{String(n).padStart(2, "0")}</span>
                                           {!saved && <span aria-hidden="true" style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: T.faint, fontFamily: fUI, fontSize: 10, fontWeight: 600 }}>None</span>}
                                         </button>
                                         {!saved ? (
@@ -4174,6 +4219,7 @@ export default function App() {
                                   })}
                                 </div>
                               </div>
+                            </div>
                             </div>
                           </div>
                         </div>
@@ -5248,27 +5294,17 @@ export default function App() {
                     </div>
                   </div>
                 ) : trk.tab === "zone" ? (
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: SP[3], alignItems: "start" }}>
-                    <div style={sec}>
-                      <span style={secTitle}>Tracking Zone</span>
-                      <select value={trk.zoneId} onChange={(e) => updTrk("zoneId", e.target.value)} style={sel}>
-                        {["Zone 1", "Zone 2", "Zone 3", "Zone 4"].map((v) => <option key={v}>{v}</option>)}
-                      </select>
-                      <TrkCheck stateKey="zoneEnabled" label="Enable selected zone" />
-                      <div style={desc}>Define the active area directly on the preview, then choose how the camera responds when a presenter enters it.</div>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <button style={primaryBtn}>Set Zone</button>
-                        <button style={secondaryBtn}>Clear</button>
-                      </div>
+                  <div id="aver-tracking-zone-panel" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: SP[3], alignItems: "start" }}>
+                    <div id="aver-tracking-zone-sliders-column" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <TrkSlider label="Tracking Sensitivity" stateKey="sensitivity" min={1} max={3} />
+                      <TrkSlider label="Time of Return to Tracking Point" stateKey="returnTime" min={3} max={10} />
                     </div>
-                    <div style={sec}>
-                      <span style={secTitle}>Zone Response</span>
-                      <select value={trk.zoneResponse} onChange={(e) => updTrk("zoneResponse", e.target.value)} style={sel}>
-                        <option>Auto</option><option>Call Preset</option><option>Hold Frame</option>
+                    <div id="aver-tracking-zone-point" style={sec}>
+                      <span style={secTitle}>Tracking Point</span>
+                      <select id="aver-tracking-zone-point-select" value={trk.zoneTrackingPoint} onChange={(e) => updTrk("zoneTrackingPoint", e.target.value)} style={sel}>
+                        {Array.from({ length: 10 }, (_, index) => <option key={index}>{`Preset ${index}`}</option>)}
                       </select>
-                      <div style={desc}>Auto follows the presenter inside the zone. Call Preset moves to the saved composition assigned to this zone.</div>
                     </div>
-                    <TrkSlider label="Transition Speed" stateKey="zoneTransition" min={1} max={10} />
                   </div>
                 ) : trk.tab === "hybrid" ? (
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: SP[3], alignItems: "start" }}>
@@ -5376,7 +5412,7 @@ export default function App() {
                       )}
                     </div>
                     <div id="aver-enrolled-face-panel" style={{ flex: "1 1 0", minWidth: 0, minHeight: 0, paddingLeft: 12, display: "flex", flexDirection: "column", gap: 8 }}>
-                      <div id="aver-face-enrollment-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                      <div id="aver-face-enrollment-header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
                         <span id="aver-enrolled-face-count" style={{ fontSize: 16, fontWeight: 500, color: T.text }}>Enrolled Face ({trk.enrolledFaces.length}/20)</span>
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                           {trk.enrolledFaces.length >= 20 && (
@@ -5452,7 +5488,7 @@ export default function App() {
                             >
                               <div id={`aver-enrolled-face-photo-${order}`} aria-label={`Enrolled face ${index + 1}`} style={{ width: 92, height: 92, boxSizing: "border-box", position: "relative", overflow: "hidden", border: `1px solid ${isEditing ? T.blue : T.line2}`, backgroundColor: "rgba(23,145,236,0.12)" }}>
                                 <FaceEnrollmentCrop candidateId={face.candidateId} label={`Face ${index + 1} photo`} />
-                                <span id={`aver-enrolled-face-number-${order}`} style={{ position: "absolute", top: 3, left: 3, color: "#fff", fontSize: 10, fontWeight: 700, lineHeight: 1, textShadow: "0 1px 3px #000" }}>{order}</span>
+                                <span id={`aver-enrolled-face-number-${order}`} title={`Priority ${order}`} aria-label={`Priority ${order}`} style={{ position: "absolute", top: 3, left: 3, padding: "2px 4px", borderRadius: 3, background: "rgba(8,10,13,0.74)", color: "#fff", fontSize: 10, fontWeight: 700, lineHeight: 1, textShadow: "0 1px 3px #000" }}>P{order}</span>
                                 <button
                                   id={`aver-enrolled-face-delete-${order}`}
                                   type="button"
@@ -5527,8 +5563,8 @@ export default function App() {
                       <div id="aver-face-enrollment-tour-dialog" style={{ width: "min(590px, calc(100vw - 48px))", overflow: "hidden", borderRadius: 10, border: `1px solid ${T.line2}`, background: "#101216", boxShadow: "0 22px 64px rgba(0,0,0,0.58)" }}>
                         <div id="aver-face-enrollment-tour-header" style={{ minHeight: 52, padding: "0 16px 0 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${T.line2}` }}>
                           <div>
-                            <div id="aver-face-enrollment-tour-title" style={{ color: T.text, fontSize: 16, fontWeight: 600 }}>Face Detection Guide</div>
-                            <div style={{ marginTop: 2, color: T.faint, fontSize: 11.5 }}>Understand which detected faces can be enrolled.</div>
+                            <div id="aver-face-enrollment-tour-title" style={{ color: T.text, fontSize: 16, fontWeight: 600 }}>Face Enrollment Guide</div>
+                            <div style={{ marginTop: 2, color: T.faint, fontSize: 11.5 }}>Understand face detection and enrollment priority.</div>
                           </div>
                           <button id="aver-face-enrollment-tour-close-button" type="button" aria-label="Close face enrollment guide" onClick={() => setFaceEnrollmentTourOpen(false)} style={{ width: 30, height: 30, padding: 0, borderRadius: 5, border: "none", background: "transparent", color: T.dim, fontFamily: fUI, fontSize: 20, cursor: "pointer" }}>×</button>
                         </div>
@@ -5552,6 +5588,33 @@ export default function App() {
                             </div>
                             <div style={{ marginTop: 10, color: "#ef6c68", fontSize: 13, fontWeight: 700 }}>Red frame · Cannot enroll</div>
                             <div style={{ marginTop: 5, color: T.dim, fontSize: 12, lineHeight: 1.5 }}>The face may be angled, blurred, obstructed, or too small. Red-framed faces are excluded from enrollment.</div>
+                          </div>
+                          <div id="aver-face-enrollment-tour-priority-order" style={{ gridColumn: "1 / -1", minWidth: 0, padding: 12, borderRadius: 8, border: `1px solid ${T.line2}`, background: "rgba(255,255,255,0.025)", display: "flex", alignItems: "center", gap: 16 }}>
+                            <div id="aver-face-enrollment-tour-priority-example" aria-label="Example of enrolled face cards ordered by priority" style={{ flex: "0 0 280px", minWidth: 0, padding: 8, borderRadius: 6, border: `1px solid ${T.line}`, background: "#171a1f" }}>
+                              <div style={{ marginBottom: 7, color: T.text, fontSize: 11.5, fontWeight: 600 }}>Enrolled Face (3/20)</div>
+                              <div style={{ display: "flex", alignItems: "flex-start", gap: 7 }}>
+                                {[
+                                  { priority: "P01", candidateId: "front-left", name: "Emma" },
+                                  { priority: "P02", candidateId: "front-center", name: "James" },
+                                  { priority: "P03", candidateId: "front-right", name: "Sophia" },
+                                ].map((card) => (
+                                  <div key={card.priority} style={{ width: 76, minWidth: 0 }}>
+                                    <div style={{ width: 76, height: 70, position: "relative", overflow: "hidden", border: `1px solid ${T.line2}`, boxSizing: "border-box", background: "rgba(23,145,236,0.12)" }}>
+                                      <FaceEnrollmentCrop candidateId={card.candidateId} label={`${card.name}, ${card.priority}`} />
+                                      <span style={{ position: "absolute", top: 3, left: 3, padding: "2px 4px", borderRadius: 3, background: "rgba(8,10,13,0.78)", color: "#fff", fontSize: 9, fontWeight: 700, lineHeight: 1 }}>{card.priority}</span>
+                                      <span aria-hidden="true" style={{ position: "absolute", top: 3, right: 3, width: 14, height: 14, borderRadius: 2, border: "1px solid rgba(255,255,255,0.25)", background: "rgba(8,10,13,0.82)", color: "#ff6b6b", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, lineHeight: 1 }}>×</span>
+                                    </div>
+                                    <div style={{ paddingTop: 3, color: T.dim, fontSize: 10.5, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{card.name}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ color: T.text, fontSize: 13, fontWeight: 700 }}>Priority order</div>
+                              <div style={{ marginTop: 4, color: T.dim, fontSize: 12, lineHeight: 1.45 }}>
+                                P01 is the highest priority. Drag a face card to another position to change its priority; the remaining cards will reorder automatically.
+                              </div>
+                            </div>
                           </div>
                         </div>
                         <div id="aver-face-enrollment-tour-footer" style={{ padding: "12px 16px", display: "flex", justifyContent: "flex-end", borderTop: `1px solid ${T.line2}`, background: "rgba(255,255,255,0.018)" }}>
