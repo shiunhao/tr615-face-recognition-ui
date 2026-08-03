@@ -1587,6 +1587,11 @@ export default function App() {
   const updLive = (k, v) => setLive((c) => ({ ...c, [k]: v }));
   const [editingLivePresetId, setEditingLivePresetId] = useState(null);
   const [livePresetNameDraft, setLivePresetNameDraft] = useState("");
+  const [draggedLivePresetId, setDraggedLivePresetId] = useState(null);
+  const [livePresetDropActive, setLivePresetDropActive] = useState(false);
+  const [livePresetDragOverlay, setLivePresetDragOverlay] = useState(null);
+  const livePresetPointerDragRef = useRef(null);
+  const suppressLivePresetClickRef = useRef(false);
   const beginLivePresetRename = (presetId) => {
     setEditingLivePresetId(presetId);
     setLivePresetNameDraft(live.presetNames[presetId]);
@@ -1683,6 +1688,129 @@ export default function App() {
     setPtz({ pan: snapshot.pan, tilt: snapshot.tilt, zoom: snapshot.zoom });
     setToast(`${live.presetNames[presetId]} loaded`);
   };
+  const startLivePresetPointerDrag = (event, presetId) => {
+    if (event.pointerType === "mouse" || event.button !== 0 || !live.presetSnapshots[presetId]) return;
+    const cardRect = event.currentTarget.getBoundingClientRect();
+    livePresetPointerDragRef.current = {
+      presetId,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      offsetX: event.clientX - cardRect.left,
+      offsetY: event.clientY - cardRect.top,
+      width: cardRect.width,
+      height: cardRect.height,
+      dragging: false,
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+  const moveLivePresetPointerDrag = (event) => {
+    const drag = livePresetPointerDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const distance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
+    if (!drag.dragging && distance >= 6) {
+      drag.dragging = true;
+      suppressLivePresetClickRef.current = true;
+      setDraggedLivePresetId(drag.presetId);
+    }
+    if (!drag.dragging) return;
+    event.preventDefault();
+    setLivePresetDragOverlay({
+      presetId: drag.presetId,
+      x: event.clientX - drag.offsetX,
+      y: event.clientY - drag.offsetY,
+      width: drag.width,
+      height: drag.height,
+    });
+    const previewRect = document.getElementById("aver-live-preview-panel")?.getBoundingClientRect();
+    const overPreview = Boolean(previewRect
+      && event.clientX >= previewRect.left
+      && event.clientX <= previewRect.right
+      && event.clientY >= previewRect.top
+      && event.clientY <= previewRect.bottom);
+    setLivePresetDropActive(overPreview);
+  };
+  const finishLivePresetPointerDrag = (event, allowDrop = true) => {
+    const drag = livePresetPointerDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const previewRect = document.getElementById("aver-live-preview-panel")?.getBoundingClientRect();
+    const droppedOnPreview = Boolean(allowDrop && drag.dragging && previewRect
+      && event.clientX >= previewRect.left
+      && event.clientX <= previewRect.right
+      && event.clientY >= previewRect.top
+      && event.clientY <= previewRect.bottom);
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    livePresetPointerDragRef.current = null;
+    setDraggedLivePresetId(null);
+    setLivePresetDropActive(false);
+    setLivePresetDragOverlay(null);
+    if (drag.dragging) window.setTimeout(() => { suppressLivePresetClickRef.current = false; }, 0);
+    if (droppedOnPreview) loadLivePreset(drag.presetId);
+  };
+  const startLivePresetMouseDrag = (event, presetId) => {
+    if (event.button !== 0 || !live.presetSnapshots[presetId]) return;
+    const cardRect = event.currentTarget.getBoundingClientRect();
+    livePresetPointerDragRef.current = {
+      presetId,
+      pointerId: "mouse",
+      startX: event.clientX,
+      startY: event.clientY,
+      offsetX: event.clientX - cardRect.left,
+      offsetY: event.clientY - cardRect.top,
+      width: cardRect.width,
+      height: cardRect.height,
+      dragging: false,
+    };
+  };
+  useEffect(() => {
+    const handleMouseMove = (event) => {
+      const drag = livePresetPointerDragRef.current;
+      if (!drag || drag.pointerId !== "mouse") return;
+      const distance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
+      if (!drag.dragging && distance >= 6) {
+        drag.dragging = true;
+        suppressLivePresetClickRef.current = true;
+        setDraggedLivePresetId(drag.presetId);
+      }
+      if (!drag.dragging) return;
+      event.preventDefault();
+      setLivePresetDragOverlay({
+        presetId: drag.presetId,
+        x: event.clientX - drag.offsetX,
+        y: event.clientY - drag.offsetY,
+        width: drag.width,
+        height: drag.height,
+      });
+      const previewRect = document.getElementById("aver-live-preview-panel")?.getBoundingClientRect();
+      setLivePresetDropActive(Boolean(previewRect
+        && event.clientX >= previewRect.left
+        && event.clientX <= previewRect.right
+        && event.clientY >= previewRect.top
+        && event.clientY <= previewRect.bottom));
+    };
+    const handleMouseUp = (event) => {
+      const drag = livePresetPointerDragRef.current;
+      if (!drag || drag.pointerId !== "mouse") return;
+      const previewRect = document.getElementById("aver-live-preview-panel")?.getBoundingClientRect();
+      const droppedOnPreview = Boolean(drag.dragging && previewRect
+        && event.clientX >= previewRect.left
+        && event.clientX <= previewRect.right
+        && event.clientY >= previewRect.top
+        && event.clientY <= previewRect.bottom);
+      livePresetPointerDragRef.current = null;
+      setDraggedLivePresetId(null);
+      setLivePresetDropActive(false);
+      setLivePresetDragOverlay(null);
+      if (drag.dragging) window.setTimeout(() => { suppressLivePresetClickRef.current = false; }, 0);
+      if (droppedOnPreview) loadLivePreset(drag.presetId);
+    };
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [live.presetSnapshots, live.presetNames]);
 
   // Tracking Control (側邊欄)
   const [trackOn, setTrackOn] = useState(true);
@@ -3981,11 +4109,21 @@ export default function App() {
               return (
                 <>
                   {/* 預覽畫面外層 container: 填滿剩餘高度與寬度 */}
-                  <div id="aver-live-preview-panel" style={{ position: "relative", borderRadius: 10, overflow: "hidden", border: `1px solid ${T.line}`, width: "100%", flex: 1, minHeight: 0, background: "#000", display: "flex", alignItems: "center", justifyContent: "center", boxSizing: "border-box" }}>
+                  <div
+                    id="aver-live-preview-panel"
+                    style={{ position: "relative", borderRadius: 10, overflow: "hidden", border: `${livePresetDropActive ? 2 : 1}px ${livePresetDropActive ? "dashed" : "solid"} ${livePresetDropActive ? T.blue : T.line}`, width: "100%", flex: 1, minHeight: 0, background: "#000", display: "flex", alignItems: "center", justifyContent: "center", boxSizing: "border-box", transition: "border-color 0.16s ease, box-shadow 0.16s ease", boxShadow: livePresetDropActive ? "inset 0 0 0 2px rgba(30,155,240,0.18), 0 0 18px rgba(30,155,240,0.24)" : "none" }}
+                  >
                     {/* 內層 16:9 預覽區：高度 100% 填滿，寬度依 16:9 比例自適應，於左右留下黑邊 */}
                     <div style={{ position: "relative", height: "100%", width: "auto", aspectRatio: "16 / 9", overflow: "hidden" }}>
                       <div id="aver-live-preset-active-preview" data-preset-id={live.selectedQuickCall ?? 0} style={{ position: "absolute", inset: 0, backgroundImage: `url(${live.activePreviewImage})`, backgroundSize: "cover", backgroundPosition: "center", transform: `translate(${ptz.pan}%, ${ptz.tilt}%) scale(${ptz.zoom * 1.65})`, transition: "transform 0.1s ease-out, opacity 0.18s ease" }} />
                     </div>
+                    {draggedLivePresetId != null && (
+                      <div id="aver-live-preset-drop-hint" role="status" style={{ position: "absolute", inset: 0, zIndex: 5, pointerEvents: "none", display: "flex", alignItems: "center", justifyContent: "center", background: livePresetDropActive ? "rgba(8,15,23,0.42)" : "rgba(0,0,0,0.16)", transition: "background 0.16s ease" }}>
+                        <span style={{ padding: "9px 14px", borderRadius: 7, border: `1px solid ${T.blue}`, background: "rgba(10,14,19,0.92)", color: "#fff", fontSize: 13, fontWeight: 700, boxShadow: "0 8px 22px rgba(0,0,0,0.45)" }}>
+                          {livePresetDropActive ? `Release to load ${live.presetNames[draggedLivePresetId]}` : `Drag ${live.presetNames[draggedLivePresetId]} here`}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* 控制面板 */}
@@ -4176,7 +4314,22 @@ export default function App() {
                                     const selected = saved && live.selectedQuickCall === n;
                                     const presetName = live.presetNames[n];
                                     return (
-                                      <div id={`aver-live-preset-card-${n}`} key={n} style={{ minWidth: 0, overflow: "hidden", borderRadius: 5, border: `${selected ? 2 : 1}px solid ${selected ? T.blue : T.line}`, background: selected ? "rgba(23,145,236,0.12)" : "#101216", boxShadow: selected ? "0 0 0 1px rgba(23,145,236,0.30)" : "none" }}>
+                                      <div
+                                        id={`aver-live-preset-card-${n}`}
+                                        key={n}
+                                        onClickCapture={(event) => {
+                                          if (!suppressLivePresetClickRef.current) return;
+                                          event.preventDefault();
+                                          event.stopPropagation();
+                                          suppressLivePresetClickRef.current = false;
+                                        }}
+                                        onMouseDown={(event) => { if (saved) startLivePresetMouseDrag(event, n); }}
+                                        onPointerDown={(event) => { if (saved) startLivePresetPointerDrag(event, n); }}
+                                        onPointerMove={moveLivePresetPointerDrag}
+                                        onPointerUp={(event) => finishLivePresetPointerDrag(event, true)}
+                                        onPointerCancel={(event) => finishLivePresetPointerDrag(event, false)}
+                                        style={{ minWidth: 0, overflow: "hidden", borderRadius: 5, border: `${selected ? 2 : 1}px ${draggedLivePresetId === n ? "dashed" : "solid"} ${selected || draggedLivePresetId === n ? T.blue : T.line}`, background: draggedLivePresetId === n ? "rgba(30,155,240,0.05)" : selected ? "rgba(23,145,236,0.12)" : "#101216", boxShadow: selected && draggedLivePresetId !== n ? "0 0 0 1px rgba(23,145,236,0.30)" : "none", touchAction: saved ? "none" : "auto", userSelect: "none", cursor: saved ? (draggedLivePresetId === n ? "grabbing" : "grab") : "default", opacity: draggedLivePresetId === n ? 0.18 : 1, transition: "opacity 0.16s ease, background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease" }}
+                                      >
                                         <button
                                           id={`aver-live-preset-thumbnail-${n}`}
                                           type="button"
@@ -4226,6 +4379,24 @@ export default function App() {
                       </div>
                     )}
                   </div>
+                  {livePresetDragOverlay && (() => {
+                    const overlayPresetId = livePresetDragOverlay.presetId;
+                    const overlaySnapshot = live.presetSnapshots[overlayPresetId];
+                    if (!overlaySnapshot) return null;
+                    return (
+                      <div
+                        id="aver-live-preset-drag-overlay"
+                        aria-hidden="true"
+                        style={{ position: "fixed", left: livePresetDragOverlay.x, top: livePresetDragOverlay.y, width: livePresetDragOverlay.width, height: livePresetDragOverlay.height, zIndex: 80, pointerEvents: "none", overflow: "hidden", boxSizing: "border-box", borderRadius: 6, background: "rgba(16,18,22,0.96)", border: `1px solid ${T.blue}`, boxShadow: "0 14px 34px rgba(0,0,0,0.55), 0 0 0 2px rgba(30,155,240,0.16)", transform: "rotate(-2deg) scale(1.04)", transformOrigin: "center", animation: "averFaceDragLift 140ms cubic-bezier(0.2, 0.8, 0.2, 1)" }}
+                      >
+                        <div style={{ position: "relative", width: "100%", aspectRatio: "16 / 9", overflow: "hidden", borderBottom: `1px solid ${T.line}` }}>
+                          <span aria-hidden="true" style={{ position: "absolute", inset: 0, backgroundImage: `linear-gradient(rgba(0,0,0,0.04), rgba(0,0,0,0.16)), url(${overlaySnapshot.image})`, backgroundSize: "cover", backgroundPosition: "center", backgroundRepeat: "no-repeat", transform: `translate(${overlaySnapshot.pan}%, ${overlaySnapshot.tilt}%) scale(${overlaySnapshot.zoom * 1.65})`, transformOrigin: "center" }} />
+                          <span style={{ position: "absolute", zIndex: 1, left: 5, top: 4, minWidth: 20, height: 18, padding: "0 4px", boxSizing: "border-box", display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: 3, background: "rgba(0,0,0,0.76)", color: "#fff", fontFamily: fMono, fontSize: 10, fontWeight: 700 }}>{String(overlayPresetId).padStart(2, "0")}</span>
+                        </div>
+                        <div style={{ width: "100%", height: 27, boxSizing: "border-box", padding: "0 6px", display: "flex", alignItems: "center", color: T.text, fontFamily: fUI, fontSize: 11.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{live.presetNames[overlayPresetId]}</div>
+                      </div>
+                    );
+                  })()}
                 </>
               );
             })()}
