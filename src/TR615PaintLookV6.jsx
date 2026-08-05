@@ -1564,6 +1564,7 @@ export default function App() {
 
   // 選單頁面狀態："paint" (Paint / Look), "video" (Video & Audio)
   const [activeMenu, setActiveMenu] = useState("tracking");
+  const [versionMenuOpen, setVersionMenuOpen] = useState(false);
   const [gridDebug, setGridDebug] = useState("off"); // Grid 模式："off" | "viewport-24" | "container-24" | "pixel-8"
   const [paintLayout, setPaintLayout] = useState("classic"); // "classic" 經典 | "cinema" 劇院
   // Camera Settings 頁狀態
@@ -3754,6 +3755,33 @@ export default function App() {
         }
         .aver-gauge-pulse { animation: averGaugePulse 1.1s ease-out infinite; }
       `}</style>
+
+      <div
+        id="aver-version-switcher"
+        title="Switch prototype version"
+        onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setVersionMenuOpen(false); }}
+        style={{ position: "fixed", right: 14, top: 12, zIndex: 90, width: 264, color: T.dim, fontFamily: fUI }}
+      >
+        <button
+          id="aver-version-switcher-button"
+          type="button"
+          aria-label="Switch prototype version"
+          aria-haspopup="listbox"
+          aria-expanded={versionMenuOpen}
+          onClick={() => setVersionMenuOpen((open) => !open)}
+          style={{ width: "100%", height: 34, padding: "0 10px", display: "flex", alignItems: "center", gap: 8, borderRadius: 6, border: `1px solid ${versionMenuOpen ? T.blue : T.line2}`, outline: "none", background: "rgba(16,18,22,0.96)", boxShadow: versionMenuOpen ? "0 0 0 2px rgba(30,155,240,0.15), 0 4px 14px rgba(0,0,0,0.34)" : "0 4px 14px rgba(0,0,0,0.34)", color: "#fff", fontFamily: fUI, fontSize: 11.5, fontWeight: 600, cursor: "pointer", textAlign: "left" }}
+        >
+          <span aria-hidden="true" style={{ width: 7, height: 7, flexShrink: 0, borderRadius: "50%", background: T.blue, boxShadow: `0 0 7px ${T.blue}` }} />
+          <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>V1 — Preset UX Baseline</span>
+          <span aria-hidden="true" style={{ color: T.dim, fontSize: 11, transform: versionMenuOpen ? "rotate(180deg)" : "none", transition: "transform 0.16s ease" }}>▼</span>
+        </button>
+        {versionMenuOpen && (
+          <div id="aver-version-switcher-menu" role="listbox" aria-label="Prototype versions" style={{ position: "absolute", top: 38, left: 0, width: "100%", boxSizing: "border-box", padding: 4, borderRadius: 6, border: `1px solid ${T.line2}`, background: T.panel2, boxShadow: "0 10px 28px rgba(0,0,0,0.46)", overflow: "hidden" }}>
+            <button id="aver-version-option-v1" type="button" role="option" aria-selected="true" onClick={() => setVersionMenuOpen(false)} style={{ width: "100%", minHeight: 32, padding: "6px 9px", border: "none", borderRadius: 4, background: "rgba(30,155,240,0.16)", color: "#fff", fontFamily: fUI, fontSize: 11.5, fontWeight: 600, textAlign: "left", cursor: "pointer", boxShadow: `inset 2px 0 0 ${T.blue}` }}>V1 — Preset UX Baseline</button>
+            <button id="aver-version-option-v2" type="button" role="option" aria-selected="false" onClick={() => window.location.assign("http://127.0.0.1:5174/")} onMouseEnter={(event) => { event.currentTarget.style.background = "rgba(255,255,255,0.06)"; }} onMouseLeave={(event) => { event.currentTarget.style.background = "transparent"; }} style={{ width: "100%", minHeight: 32, padding: "6px 9px", border: "none", borderRadius: 4, background: "transparent", color: T.dim, fontFamily: fUI, fontSize: 11.5, textAlign: "left", cursor: "pointer" }}>V2 — Face Enrollment Development</button>
+          </div>
+        )}
+      </div>
 
       {/* 側邊導覽欄 (AVer WebUI Sidebar Template) */}
       <div id="aver-sidebar-container" style={{ width: 220, background: T.side, flexShrink: 0, paddingTop: 20, display: "flex", flexDirection: "column", height: "100vh", boxSizing: "border-box", overflowY: "auto" }}>
