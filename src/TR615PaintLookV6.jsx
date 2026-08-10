@@ -1252,7 +1252,6 @@ export default function App() {
   const updTrk = (k, v) => setTrk((p) => ({ ...p, [k]: v }));
   const [draggedFaceId, setDraggedFaceId] = useState(null);
   const [faceDragOverlay, setFaceDragOverlay] = useState(null);
-  const [facePriorityTarget, setFacePriorityTarget] = useState(null);
   const [faceDeleteTarget, setFaceDeleteTarget] = useState(null);
   const [editingFaceId, setEditingFaceId] = useState(null);
   const [editingFaceName, setEditingFaceName] = useState("");
@@ -1287,22 +1286,10 @@ export default function App() {
       return { ...p, enrolledFaces: resequenceFaces(nextFaces) };
     });
   };
-  const openFacePriorityMenu = (event, face, index) => {
-    event.stopPropagation();
-    const rect = event.currentTarget.getBoundingClientRect();
-    setFacePriorityTarget({
-      id: face.id,
-      order: index + 1,
-      left: rect.left,
-      top: rect.top,
-      bottom: rect.bottom,
-    });
-  };
-  const setEnrolledFacePriority = (priority) => {
-    if (!facePriorityTarget) return;
+  const setEnrolledFacePriority = (faceId, priority) => {
     captureFaceCardPositions();
     setTrk((current) => {
-      const fromIndex = current.enrolledFaces.findIndex((face) => face.id === facePriorityTarget.id);
+      const fromIndex = current.enrolledFaces.findIndex((face) => face.id === faceId);
       const targetIndex = Math.max(0, Math.min(current.enrolledFaces.length - 1, priority - 1));
       if (fromIndex < 0 || fromIndex === targetIndex) return current;
       const nextFaces = [...current.enrolledFaces];
@@ -1310,7 +1297,6 @@ export default function App() {
       nextFaces.splice(targetIndex, 0, movingFace);
       return { ...current, enrolledFaces: resequenceFaces(nextFaces) };
     });
-    setFacePriorityTarget(null);
   };
   const startFaceDrag = (event, faceId) => {
     faceDraggingIdRef.current = faceId;
@@ -1427,8 +1413,10 @@ export default function App() {
     setTrk((p) => ({ ...p, faceCaptureState: "loading", faceBatchResult: null }));
     faceEnrollTimerRef.current = setTimeout(() => {
       setFaceSelectCoachmarkDismissed(false);
+      const eligibleFaces = FACE_ENROLLMENT_CANDIDATES.filter((candidate) => candidate.status === "eligible");
+      const availableSlots = Math.max(0, 20 - trk.enrolledFaces.length);
+      const enrolledCount = Math.min(eligibleFaces.length, availableSlots);
       setTrk((p) => {
-        const eligibleFaces = FACE_ENROLLMENT_CANDIDATES.filter((candidate) => candidate.status === "eligible");
         const availableSlots = Math.max(0, 20 - p.enrolledFaces.length);
         const addedCandidates = eligibleFaces.slice(0, availableSlots);
         const batchId = Date.now();
@@ -1451,6 +1439,7 @@ export default function App() {
           },
         };
       });
+      flash(enrolledCount > 0 ? `已登錄 ${enrolledCount} 張人臉` : "未新增人臉");
       faceEnrollTimerRef.current = null;
     }, 1000);
   };
@@ -1478,10 +1467,9 @@ export default function App() {
     const coachmarkTimer = setTimeout(() => setFaceSelectCoachmarkVisible(false), 5200);
     return () => clearTimeout(coachmarkTimer);
   }, [trk.faceCaptureState, faceSelectFlow.stage, faceSelectCoachmarkDismissed, trk.enrolledFaces.length]);
-  const startFaceRecapture = (candidateId) => {
+  const startFaceAdd = (candidateId) => {
     const candidate = FACE_ENROLLMENT_CANDIDATES.find((item) => item.id === candidateId);
-    const existingFace = [...trk.enrolledFaces].reverse().find((face) => face.candidateId === candidateId);
-    if (!candidate || candidate.status !== "eligible" || !existingFace || trk.faceCaptureState !== "complete" || faceSelectFlow.stage !== "ready") return;
+    if (!candidate || candidate.status !== "eligible" || trk.faceCaptureState !== "complete" || faceSelectFlow.stage !== "ready") return;
     clearFaceSelectTimers();
     setFaceSelectCoachmarkDismissed(true);
     setFaceSelectCoachmarkVisible(false);
@@ -1492,13 +1480,16 @@ export default function App() {
       setTimeout(() => {
         setFaceSelectFlow({ stage: "saving", candidateId });
         setTrk((p) => {
-          let updated = false;
-          const nextFaces = [...p.enrolledFaces].reverse().map((face) => {
-            if (updated || face.candidateId !== candidateId) return face;
-            updated = true;
-            return { ...face, recapturedAt: Date.now(), captureVersion: (face.captureVersion || 0) + 1 };
-          }).reverse();
-          return { ...p, enrolledFaces: nextFaces };
+          const capturedAt = Date.now();
+          const newFace = {
+            id: capturedAt,
+            name: "",
+            priority: p.enrolledFaces.length + 1,
+            candidateId,
+            liveCapturedAt: capturedAt,
+            captureVersion: 1,
+          };
+          return { ...p, enrolledFaces: [...p.enrolledFaces, newFace] };
         });
       }, 2100),
       setTimeout(() => setFaceSelectFlow({ stage: "restoring", candidateId }), 2450),
@@ -5339,14 +5330,14 @@ export default function App() {
             const faceSelectTilt = faceFocusCandidate ? clampFaceSelectOffset(50 - faceSelectCenterY, faceSelectCenterY) : 0;
             const faceSelectFocusedTransform = `translate(${faceSelectPan}%, ${faceSelectTilt}%) scale(${faceSelectZoom})`;
             const faceSelectStageLabel = {
-              initializing: "Detecting faces...",
-              zooming: "Centering face...",
-              capturing: "Capturing...",
-              saving: "Updating...",
-              restoring: "Restoring...",
+              initializing: "正在偵測人臉...",
+              zooming: "正在置中臉部...",
+              capturing: "正在擷取人臉...",
+              saving: "正在新增人臉...",
+              restoring: "已新增人臉",
             }[faceSelectFlow.stage];
             const faceSelectFrameLabel = {
-              zooming: "Centering",
+              zooming: "置中",
               capturing: "Capturing",
               saving: "Updating",
               restoring: "Restoring",
@@ -5394,41 +5385,47 @@ export default function App() {
                           const label = blockedByLibraryFull
                             ? "Library full"
                             : isValidSelectFace
-                              ? isSelected && faceSelectFrameLabel
-                                ? faceSelectFrameLabel
-                                : isAdded || isPreviouslyEnrolled ? "Enrolled" : "Eligible"
+                              ? isAdded || isPreviouslyEnrolled ? "Enrolled" : "Eligible"
                               : candidate.label;
-                          const actionLabel = "Recapture";
+                          const actionLabel = "Add Face";
                           const { x, y, size } = candidate.crop;
                           return (
                             <g
                               key={candidate.id}
                               id={`aver-face-box-${candidate.id}`}
-                              role={isSelectable ? "button" : undefined}
-                              tabIndex={isSelectable ? 0 : undefined}
-                              aria-label={isValidSelectFace ? `${actionLabel}: ${candidate.id}` : `${candidate.label}; face cannot be enrolled`}
-                              onClick={() => isSelectable && startFaceRecapture(candidate.id)}
+                              aria-label={isValidSelectFace ? `${label}: ${candidate.id}` : `${candidate.label}; face cannot be enrolled`}
                               onMouseEnter={() => isSelectable && setHoveredFaceCandidateId(candidate.id)}
                               onMouseLeave={() => setHoveredFaceCandidateId((current) => current === candidate.id ? null : current)}
-                              onFocus={() => isSelectable && setHoveredFaceCandidateId(candidate.id)}
-                              onBlur={() => setHoveredFaceCandidateId((current) => current === candidate.id ? null : current)}
-                              onKeyDown={(event) => {
-                                if (isSelectable && (event.key === "Enter" || event.key === " ")) {
-                                  event.preventDefault();
-                                  startFaceRecapture(candidate.id);
-                                }
-                              }}
-                              style={{ cursor: isSelectable ? "pointer" : "default", pointerEvents: "all", opacity: faceSelectFlow.stage === "restoring" && isSelected ? 0.7 : 1, filter: isHovered ? "drop-shadow(0 0 8px rgba(30,155,240,0.9))" : "none", transition: "filter 160ms ease" }}
+                              style={{ cursor: "default", pointerEvents: "all", opacity: faceSelectFlow.stage === "restoring" && isSelected ? 0.7 : 1, filter: isHovered ? "drop-shadow(0 0 8px rgba(30,155,240,0.9))" : "none", transition: "filter 160ms ease" }}
                             >
                               {shouldPulse && <rect className="aver-face-select-pulse" x={x - 7} y={y - 7} width={size + 14} height={size + 14} fill="none" stroke={T.blue} vectorEffect="non-scaling-stroke" />}
                               <rect x={x} y={y} width={size} height={size} fill={isHovered ? "rgba(23,145,236,0.13)" : "rgba(23,145,236,0.001)"} stroke={color} strokeWidth={isHovered ? "8" : "5"} vectorEffect="non-scaling-stroke" />
                               <rect x={x} y={Math.max(0, y - 30)} width={size} height="30" fill={color} opacity="0.94" />
                               <text x={x + 9} y={Math.max(21, y - 9)} fill="#fff" fontSize="18" fontWeight="700" fontFamily={fUI}>{label}</text>
                               {isSelectable && (
-                                <>
+                                <g
+                                  id={`aver-face-add-face-${candidate.id}`}
+                                  role="button"
+                                  tabIndex="0"
+                                  aria-label={`${actionLabel}: ${candidate.id}`}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    startFaceAdd(candidate.id);
+                                  }}
+                                  onFocus={() => setHoveredFaceCandidateId(candidate.id)}
+                                  onBlur={() => setHoveredFaceCandidateId((current) => current === candidate.id ? null : current)}
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Enter" || event.key === " ") {
+                                      event.preventDefault();
+                                      event.stopPropagation();
+                                      startFaceAdd(candidate.id);
+                                    }
+                                  }}
+                                  style={{ cursor: "pointer" }}
+                                >
                                   <rect x={x} y={y + size - 30} width={size} height="30" fill="rgba(5,10,15,0.88)" stroke={color} strokeWidth="2" vectorEffect="non-scaling-stroke" />
                                   <text x={x + size / 2} y={y + size - 9} textAnchor="middle" fill="#fff" fontSize="17" fontWeight="700" fontFamily={fUI}>◎ {actionLabel}</text>
-                                </>
+                                </g>
                               )}
                             </g>
                           );
@@ -5448,10 +5445,9 @@ export default function App() {
                         <span>FROZEN FRAME</span>
                       </div>
                     )}
-                    {trk.tab === "face" && faceSelectCoachmarkVisible && (
+                    {false && (
                       <div id="aver-face-select-coachmark" role="status" aria-live="polite" style={{ position: "absolute", top: 12, left: "50%", transform: "translateX(-50%)", zIndex: 4, minHeight: 36, maxWidth: "calc(100% - 28px)", boxSizing: "border-box", padding: "7px 9px 7px 12px", display: "flex", alignItems: "center", gap: 8, borderRadius: 7, border: "1px solid rgba(30,155,240,0.58)", background: "rgba(8,12,17,0.92)", color: "#fff", boxShadow: "0 8px 24px rgba(0,0,0,0.38)", fontSize: 12.5, fontWeight: 600, whiteSpace: "nowrap" }}>
                         <span aria-hidden="true" style={{ color: T.blue, fontSize: 16, lineHeight: 1 }}>☝</span>
-                        <span>Use Recapture if an enrolled face photo is not clear enough</span>
                         <button id="aver-face-select-coachmark-dismiss-button" type="button" aria-label="Dismiss face selection tip" onClick={() => { setFaceSelectCoachmarkVisible(false); setFaceSelectCoachmarkDismissed(true); }} style={{ width: 22, height: 22, padding: 0, marginLeft: 2, display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: 4, border: "none", background: "transparent", color: T.dim, fontFamily: fUI, fontSize: 16, cursor: "pointer" }}>×</button>
                       </div>
                     )}
@@ -5653,20 +5649,17 @@ export default function App() {
                           style={{ width: 18, height: 18, padding: 0, borderRadius: "50%", border: `1px solid ${T.faint}`, background: "transparent", color: T.dim, fontFamily: fUI, fontSize: 11, fontWeight: 700, lineHeight: 1, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
                         >i</button>
                       </div>
-                      <div id="aver-face-enrollment-action-description" style={{ fontSize: 11.5, color: T.faint, lineHeight: 1.45 }}>
-                        Capture one frozen frame and enroll every eligible face in the image.
-                      </div>
                       <button
                         id={trk.faceCaptureState === "complete" ? "aver-face-resume-live-button" : "aver-face-enroll-all-button"}
                         onClick={trk.faceCaptureState === "complete" ? resumeFaceEnrollmentLiveView : startFaceBatchEnrollment}
                         disabled={trk.faceCaptureState === "loading" || faceSelectFlow.stage !== "ready" || (trk.faceCaptureState !== "complete" && trk.enrolledFaces.length >= 20)}
                         style={{ ...primaryBtn, width: "100%", padding: "8px 8px", opacity: trk.faceCaptureState === "loading" || faceSelectFlow.stage !== "ready" || (trk.faceCaptureState !== "complete" && trk.enrolledFaces.length >= 20) ? 0.48 : 1, cursor: trk.faceCaptureState === "loading" || faceSelectFlow.stage !== "ready" || (trk.faceCaptureState !== "complete" && trk.enrolledFaces.length >= 20) ? "not-allowed" : "pointer" }}
                       >
-                        {trk.faceCaptureState === "loading" ? "Capturing and enrolling..." : faceSelectFlow.stage !== "ready" ? "Recapture in progress" : trk.faceCaptureState === "complete" ? "Resume Live" : "Enroll All Faces"}
+                        {trk.faceCaptureState === "complete" ? "Resume Live" : "Enroll All Faces"}
                       </button>
-                      <div id="aver-face-recapture-hint" style={{ display: "flex", alignItems: "flex-start", gap: 7, padding: "8px 9px", borderRadius: 5, border: `1px solid ${T.line}`, background: "#111419", color: T.dim, fontSize: 11.5, lineHeight: 1.4 }}>
+                      <div id="aver-face-add-face-hint" style={{ display: "flex", alignItems: "flex-start", gap: 7, padding: "8px 9px", borderRadius: 5, border: `1px solid ${T.line}`, background: "#111419", color: T.dim, fontSize: 11.5, lineHeight: 1.4 }}>
                         <span aria-hidden="true" style={{ color: T.blue, fontWeight: 700 }}>◎</span>
-                        <span>Use Recapture on a blue frame if its enrolled photo is not clear enough.</span>
+                        <span>{trk.enrolledFaces.length === 0 ? "Click Enroll All Faces to capture eligible faces." : "Use Add Face on a blue frame for a closer capture."}</span>
                       </div>
                     </div>
                     <div id="aver-enrolled-face-panel" style={{ flex: "1 1 0", minWidth: 0, minHeight: 0, paddingLeft: 12, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -5745,19 +5738,24 @@ export default function App() {
                               style={{ position: "relative", zIndex: 1, width: 92, minWidth: 92, display: "flex", flexDirection: "column", gap: 3, padding: 2, margin: -2, boxSizing: "content-box", borderRadius: 4, background: isEditing ? "rgba(30,155,240,0.10)" : isDragging ? "rgba(30,155,240,0.05)" : "transparent", outline: isEditing ? `1px solid ${T.blue}` : isDragging ? "1px dashed rgba(30,155,240,0.65)" : "1px solid transparent", opacity: isDragging ? 0.18 : 1, cursor: isDragging ? "grabbing" : isEditing ? "text" : "grab", touchAction: isEditing ? "auto" : "none", userSelect: "none", transition: "opacity 0.16s ease, background 0.16s ease, outline-color 0.16s ease" }}
                             >
                               <div id={`aver-enrolled-face-photo-${order}`} aria-label={`Enrolled face ${index + 1}`} style={{ width: 92, height: 92, boxSizing: "border-box", position: "relative", overflow: "hidden", border: `1px solid ${isEditing ? T.blue : T.line2}`, backgroundColor: "rgba(23,145,236,0.12)" }}>
-                                <FaceEnrollmentCrop candidateId={face.candidateId} label={`Face ${index + 1} photo${face.recapturedAt ? ", recaptured" : ""}`} recaptured={Boolean(face.recapturedAt)} />
-                                <button
+                                <FaceEnrollmentCrop candidateId={face.candidateId} label={`Face ${index + 1} photo${face.liveCapturedAt ? ", live capture" : ""}`} recaptured={Boolean(face.liveCapturedAt)} />
+                                <select
                                   id={`aver-enrolled-face-priority-${order}`}
-                                  type="button"
                                   title="Change priority"
                                   aria-label={`Change priority, currently P${order}`}
-                                  aria-haspopup="menu"
-                                  aria-expanded={facePriorityTarget?.id === face.id}
-                                  onClick={(event) => openFacePriorityMenu(event, face, index)}
-                                  style={{ position: "absolute", top: 3, left: 3, height: 18, padding: "0 4px", display: "inline-flex", alignItems: "center", gap: 2, outline: "none", borderRadius: 3, border: `1px solid ${facePriorityTarget?.id === face.id ? T.blue : "rgba(255,255,255,0.22)"}`, background: facePriorityTarget?.id === face.id ? "rgba(23,145,236,0.88)" : "rgba(8,10,13,0.78)", color: "#fff", fontFamily: fUI, fontSize: 9.5, fontWeight: 700, lineHeight: 1, cursor: "pointer", textShadow: "0 1px 3px #000" }}
+                                  value={index + 1}
+                                  draggable={false}
+                                  onDragStart={(event) => event.preventDefault()}
+                                  onPointerDown={(event) => event.stopPropagation()}
+                                  onClick={(event) => event.stopPropagation()}
+                                  onChange={(event) => setEnrolledFacePriority(face.id, Number(event.target.value))}
+                                  style={{ position: "absolute", top: 3, left: 3, width: 42, height: 18, padding: "0 2px 0 4px", outline: "none", borderRadius: 3, border: "1px solid rgba(255,255,255,0.22)", background: "rgba(8,10,13,0.78)", color: "#fff", fontFamily: fUI, fontSize: 9.5, fontWeight: 700, lineHeight: 1, cursor: "pointer", textShadow: "0 1px 3px #000" }}
                                 >
-                                  P{order}<span aria-hidden="true" style={{ fontSize: 7, opacity: 0.78 }}>▼</span>
-                                </button>
+                                  {trk.enrolledFaces.map((_, priorityIndex) => {
+                                    const priority = priorityIndex + 1;
+                                    return <option key={priority} value={priority}>P{String(priority).padStart(2, "0")}</option>;
+                                  })}
+                                </select>
                                 <button
                                   id={`aver-enrolled-face-delete-${order}`}
                                   type="button"
@@ -5769,8 +5767,7 @@ export default function App() {
                                 >×</button>
                               </div>
                               {isEditing ? (
-                                <div id={`aver-enrolled-face-name-edit-state-${order}`} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                                  <span style={{ fontSize: 9.5, color: T.blue, fontWeight: 600, lineHeight: 1 }}>Editing</span>
+                                <div id={`aver-enrolled-face-name-edit-state-${order}`}>
                                   <input
                                     id={`aver-enrolled-face-name-input-${order}`}
                                     aria-label={`Edit name for face ${index + 1}`}
@@ -5802,51 +5799,13 @@ export default function App() {
                       )}
                     </div>
                   </div>
-                  {facePriorityTarget && (() => {
-                    const popoverWidth = 196;
-                    const estimatedHeight = 70 + Math.ceil(trk.enrolledFaces.length / 4) * 31;
-                    const left = Math.max(8, Math.min(window.innerWidth - popoverWidth - 8, facePriorityTarget.left));
-                    const openBelow = facePriorityTarget.bottom + estimatedHeight + 8 <= window.innerHeight;
-                    const top = openBelow
-                      ? facePriorityTarget.bottom + 5
-                      : Math.max(8, facePriorityTarget.top - estimatedHeight - 5);
-                    return (
-                      <div id="aver-face-priority-popover-layer" onMouseDown={(event) => { if (event.target === event.currentTarget) setFacePriorityTarget(null); }} style={{ position: "fixed", inset: 0, zIndex: 68 }}>
-                        <div id="aver-face-priority-popover" role="menu" aria-label="Set face priority" onKeyDown={(event) => { if (event.key === "Escape") setFacePriorityTarget(null); }} style={{ position: "absolute", left, top, width: popoverWidth, boxSizing: "border-box", padding: 8, borderRadius: 7, border: `1px solid ${T.line2}`, background: "#101216", boxShadow: "0 14px 34px rgba(0,0,0,0.56)" }}>
-                          <div style={{ padding: "1px 2px 7px", borderBottom: `1px solid ${T.line}`, color: T.text, fontSize: 12, fontWeight: 700 }}>Set Priority</div>
-                          <div style={{ padding: "6px 2px", color: T.faint, fontSize: 10.5, lineHeight: 1.3 }}>Choose a position or drag the card.</div>
-                          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 4 }}>
-                            {trk.enrolledFaces.map((face, index) => {
-                              const priority = index + 1;
-                              const active = priority === facePriorityTarget.order;
-                              return (
-                                <button
-                                  id={`aver-face-priority-option-${String(priority).padStart(2, "0")}`}
-                                  key={priority}
-                                  type="button"
-                                  role="menuitemradio"
-                                  aria-checked={active}
-                                  autoFocus={active}
-                                  onPointerDown={(event) => event.stopPropagation()}
-                                  onClick={() => setEnrolledFacePriority(priority)}
-                                  style={{ height: 27, padding: 0, outline: "none", borderRadius: 4, border: `1px solid ${active ? T.blue : T.line2}`, background: active ? "rgba(23,145,236,0.18)" : "#171a1f", color: active ? "#fff" : T.dim, fontFamily: fMono, fontSize: 10.5, fontWeight: 700, cursor: "pointer" }}
-                                >
-                                  P{String(priority).padStart(2, "0")}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
                   {faceEnrollmentTourOpen && (
                     <div id="aver-face-enrollment-tour-modal" role="dialog" aria-modal="true" aria-labelledby="aver-face-enrollment-tour-title" style={{ position: "fixed", inset: 0, zIndex: 75, padding: 16, background: "rgba(0,0,0,0.72)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <div id="aver-face-enrollment-tour-dialog" style={{ width: "min(680px, calc(100vw - 32px))", maxHeight: "calc(100vh - 32px)", overflow: "hidden", borderRadius: 10, border: `1px solid ${T.line2}`, background: "#101216", boxShadow: "0 22px 64px rgba(0,0,0,0.58)", display: "flex", flexDirection: "column" }}>
                         <div id="aver-face-enrollment-tour-header" style={{ minHeight: 48, padding: "0 14px 0 16px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${T.line2}` }}>
                           <div>
                             <div id="aver-face-enrollment-tour-title" style={{ color: T.text, fontSize: 16, fontWeight: 600 }}>Face Enrollment Guide</div>
-                            <div style={{ marginTop: 2, color: T.faint, fontSize: 11.5 }}>Understand face eligibility, recapture, and priority.</div>
+                            <div style={{ marginTop: 2, color: T.faint, fontSize: 11.5 }}>Understand face eligibility, Add Face, and priority.</div>
                           </div>
                           <button id="aver-face-enrollment-tour-close-button" type="button" aria-label="Close face enrollment guide" onClick={() => setFaceEnrollmentTourOpen(false)} style={{ width: 30, height: 30, padding: 0, borderRadius: 5, border: "none", background: "transparent", color: T.dim, fontFamily: fUI, fontSize: 20, cursor: "pointer" }}>×</button>
                         </div>
@@ -5856,7 +5815,7 @@ export default function App() {
                               <div style={{ width: 90, height: 90, position: "relative", overflow: "hidden" }}>
                                 <FaceEnrollmentCrop candidateId="front-center" label="Eligible front-facing person" />
                                 <span aria-hidden="true" style={{ position: "absolute", inset: 5, border: `3px solid ${T.blue}`, boxSizing: "border-box" }} />
-                                <span aria-hidden="true" style={{ position: "absolute", left: 5, right: 5, bottom: 5, padding: "4px 2px", background: "rgba(5,10,15,0.88)", borderTop: `1px solid ${T.blue}`, color: "#fff", fontSize: 10, fontWeight: 700, textAlign: "center" }}>◎ Recapture</span>
+                                <span aria-hidden="true" style={{ position: "absolute", left: 5, right: 5, bottom: 5, padding: "4px 2px", background: "rgba(5,10,15,0.88)", borderTop: `1px solid ${T.blue}`, color: "#fff", fontSize: 10, fontWeight: 700, textAlign: "center" }}>◎ Add Face</span>
                               </div>
                             </div>
                             <div style={{ marginTop: 8, color: T.blue, fontSize: 12.5, fontWeight: 700 }}>Blue frame · Eligible face</div>
@@ -5873,21 +5832,21 @@ export default function App() {
                             <div style={{ marginTop: 4, color: T.dim, fontSize: 11.5, lineHeight: 1.4 }}>The face may be angled, blurred, obstructed, or too small. Red-framed faces are excluded from enrollment.</div>
                           </div>
                           <div id="aver-face-enrollment-tour-recapture" style={{ gridColumn: "1 / -1", minWidth: 0, padding: 10, borderRadius: 8, border: "1px solid rgba(30,155,240,0.28)", background: "rgba(30,155,240,0.045)", display: "grid", gridTemplateColumns: "270px minmax(0, 1fr)", alignItems: "center", columnGap: 14 }}>
-                            <div id="aver-face-enrollment-tour-recapture-example" aria-label="Select Recapture on the batch face to create a closer PTZ photo" style={{ width: "100%", minWidth: 0, height: 88, padding: 7, boxSizing: "border-box", borderRadius: 6, border: `1px solid ${T.line}`, background: "#090b0f", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+                            <div id="aver-face-enrollment-tour-recapture-example" aria-label="Select Add Face on the batch face to create another face record" style={{ width: "100%", minWidth: 0, height: 88, padding: 7, boxSizing: "border-box", borderRadius: 6, border: `1px solid ${T.line}`, background: "#090b0f", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
                               <div style={{ width: 74, height: 74, position: "relative", overflow: "hidden", border: `2px solid ${T.blue}`, boxSizing: "border-box" }}>
                                 <FaceEnrollmentCrop candidateId="front-center" label="Original batch capture" />
                                 <span style={{ position: "absolute", left: 3, top: 3, padding: "2px 4px", borderRadius: 3, background: "rgba(8,10,13,0.78)", color: T.dim, fontSize: 8.5, fontWeight: 700 }}>BATCH</span>
-                                <span aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 17, background: "rgba(5,10,15,0.90)", borderTop: `1px solid ${T.blue}`, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8.5, fontWeight: 700 }}>◎ Recapture</span>
+                                <span aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 17, background: "rgba(5,10,15,0.90)", borderTop: `1px solid ${T.blue}`, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8.5, fontWeight: 700 }}>◎ Add Face</span>
                               </div>
                               <span aria-hidden="true" style={{ color: T.blue, fontSize: 20, fontWeight: 700 }}>→</span>
                               <div style={{ width: 74, height: 74, position: "relative", overflow: "hidden", border: `2px solid ${T.blue}`, boxSizing: "border-box" }}>
-                                <FaceEnrollmentCrop candidateId="front-center" label="Closer PTZ recapture" recaptured />
+                                <FaceEnrollmentCrop candidateId="front-center" label="Closer PTZ live capture" recaptured />
                                 <span style={{ position: "absolute", left: 3, top: 3, padding: "2px 4px", borderRadius: 3, background: "rgba(8,10,13,0.78)", color: "#fff", fontSize: 8.5, fontWeight: 700 }}>PTZ</span>
                               </div>
                             </div>
                             <div style={{ minWidth: 0 }}>
-                              <div style={{ color: T.blue, fontSize: 13, fontWeight: 700 }}>Recapture</div>
-                              <div style={{ marginTop: 4, color: T.dim, fontSize: 11.5, lineHeight: 1.4 }}>If a batch photo is unclear, select Recapture on its blue frame. The camera returns to Live View, centers and zooms to the person, then replaces the existing photo. Name, priority, and face count stay unchanged.</div>
+                              <div style={{ color: T.blue, fontSize: 13, fontWeight: 700 }}>Add Face</div>
+                              <div style={{ marginTop: 4, color: T.dim, fontSize: 11.5, lineHeight: 1.4 }}>Select Add Face on a blue frame. The camera returns to Live View, centers and zooms to the person, then adds a new face record. The original batch record remains unchanged.</div>
                             </div>
                           </div>
                           <div id="aver-face-enrollment-tour-priority-order" style={{ gridColumn: "1 / -1", minWidth: 0, padding: 10, borderRadius: 8, border: `1px solid ${T.line2}`, background: "rgba(255,255,255,0.025)", display: "grid", gridTemplateColumns: "270px minmax(0, 1fr)", alignItems: "center", columnGap: 14 }}>
@@ -5974,11 +5933,11 @@ export default function App() {
                       <div id="aver-face-delete-dialog" style={{ width: "min(390px, calc(100vw - 48px))", overflow: "hidden", background: "#101216", border: `1px solid ${T.line2}`, borderRadius: 10, boxShadow: "0 20px 60px rgba(0,0,0,0.55)" }}>
                         <div id="aver-face-delete-title" style={{ padding: "17px 18px 12px", color: T.text, fontSize: 16, fontWeight: 600 }}>Delete enrolled face?</div>
                         <div style={{ padding: "0 18px 18px", color: T.dim, fontSize: 13, lineHeight: 1.55 }}>
-                          {faceDeleteTarget.name ? `“${faceDeleteTarget.name}”` : `Face ${String(faceDeleteTarget.order).padStart(2, "0")}`} will be permanently removed. The following cards will move forward automatically.
+                          {faceDeleteTarget.name ? `“${faceDeleteTarget.name}”` : `Face ${String(faceDeleteTarget.order).padStart(2, "0")}`} will be removed.
                         </div>
                         <div style={{ display: "flex", justifyContent: "flex-end", gap: 9, padding: "12px 16px", borderTop: `1px solid ${T.line2}`, background: "rgba(255,255,255,0.02)" }}>
                           <button id="aver-face-delete-cancel-button" type="button" onClick={() => setFaceDeleteTarget(null)} style={secondaryBtn}>Cancel</button>
-                          <button id="aver-face-delete-confirm-button" type="button" onClick={confirmFaceDelete} style={{ ...primaryBtn, background: "#d94b4b" }}>Delete</button>
+                          <button id="aver-face-delete-confirm-button" type="button" onClick={confirmFaceDelete} style={secondaryBtn}>Delete</button>
                         </div>
                       </div>
                     </div>
