@@ -182,8 +182,8 @@ function applyTone(R, G, B, p) {
     const bl = master + channelOffset;
     // 套用黑位補償
     v = v + bl * (1 - v);
-    // 套用高光壓縮曲線
-    if (v > kp) {
+    // Knee 總開關開啟時才套用高光壓縮曲線
+    if (p.kneeOn && v > kp) {
       v = kp + (v - kp) * slope;
     }
     return v;
@@ -1167,6 +1167,9 @@ function SceneTile({ thumb, name, remark, active, dirty, factory, onLoad, onEdit
 // ============================================================================
 const FACE_ENROLLMENT_DEMO_IMAGE = "face-enrollment-demo-tech-office-v6.png";
 const FACE_ENROLLMENT_DEMO_SIZE = { width: 1672, height: 941 };
+const LIVE_PRESET_COUNT = 256;
+const LIVE_PRESETS_PER_PAGE = 12;
+const LIVE_PRESET_PAGE_COUNT = Math.ceil(LIVE_PRESET_COUNT / LIVE_PRESETS_PER_PAGE);
 const FACE_ENROLLMENT_CANDIDATES = [
   { id: "front-left", status: "eligible", label: "Enrolled", crop: { x: 276, y: 397, size: 154 } },
   { id: "front-center", status: "eligible", label: "Enrolled", crop: { x: 585, y: 108, size: 138 } },
@@ -1286,18 +1289,6 @@ export default function App() {
       return { ...p, enrolledFaces: resequenceFaces(nextFaces) };
     });
   };
-  const setEnrolledFacePriority = (faceId, priority) => {
-    captureFaceCardPositions();
-    setTrk((current) => {
-      const fromIndex = current.enrolledFaces.findIndex((face) => face.id === faceId);
-      const targetIndex = Math.max(0, Math.min(current.enrolledFaces.length - 1, priority - 1));
-      if (fromIndex < 0 || fromIndex === targetIndex) return current;
-      const nextFaces = [...current.enrolledFaces];
-      const [movingFace] = nextFaces.splice(fromIndex, 1);
-      nextFaces.splice(targetIndex, 0, movingFace);
-      return { ...current, enrolledFaces: resequenceFaces(nextFaces) };
-    });
-  };
   const startFaceDrag = (event, faceId) => {
     faceDraggingIdRef.current = faceId;
     setDraggedFaceId(faceId);
@@ -1376,7 +1367,27 @@ export default function App() {
   const confirmFaceDelete = () => {
     if (!faceDeleteTarget) return;
     captureFaceCardPositions();
-    setTrk((p) => ({ ...p, enrolledFaces: resequenceFaces(p.enrolledFaces.filter((face) => face.id !== faceDeleteTarget.id)) }));
+    setTrk((p) => {
+      const deletedFace = p.enrolledFaces.find((face) => face.id === faceDeleteTarget.id);
+      const remainingFaces = p.enrolledFaces.filter((face) => face.id !== faceDeleteTarget.id);
+      const candidateStillExists = deletedFace?.candidateId
+        ? remainingFaces.some((face) => face.candidateId === deletedFace.candidateId)
+        : false;
+      const nextBatchResult = p.faceBatchResult
+        ? {
+            ...p.faceBatchResult,
+            enrolled: Math.max(0, (p.faceBatchResult.enrolled ?? 0) - 1),
+            addedCandidateIds: deletedFace?.candidateId && !candidateStillExists
+              ? (p.faceBatchResult.addedCandidateIds ?? []).filter((candidateId) => candidateId !== deletedFace.candidateId)
+              : (p.faceBatchResult.addedCandidateIds ?? []),
+          }
+        : null;
+      return {
+        ...p,
+        enrolledFaces: resequenceFaces(remainingFaces),
+        faceBatchResult: nextBatchResult,
+      };
+    });
     if (editingFaceId === faceDeleteTarget.id) {
       setEditingFaceId(null);
       setEditingFaceName("");
@@ -1414,34 +1425,53 @@ export default function App() {
     faceEnrollTimerRef.current = setTimeout(() => {
       setFaceSelectCoachmarkDismissed(false);
       const eligibleFaces = FACE_ENROLLMENT_CANDIDATES.filter((candidate) => candidate.status === "eligible");
-      const availableSlots = Math.max(0, 20 - trk.enrolledFaces.length);
-      const enrolledCount = Math.min(eligibleFaces.length, availableSlots);
       setTrk((p) => {
-        const availableSlots = Math.max(0, 20 - p.enrolledFaces.length);
-        const addedCandidates = eligibleFaces.slice(0, availableSlots);
-        const batchId = Date.now();
-        const newFaces = addedCandidates.map((candidate, index) => ({
-          id: batchId + index,
-          name: "",
-          priority: p.enrolledFaces.length + index + 1,
-          candidateId: candidate.id,
-        }));
         return {
           ...p,
-          enrolledFaces: [...p.enrolledFaces, ...newFaces],
           faceCaptureState: "complete",
           faceBatchResult: {
             detected: FACE_ENROLLMENT_CANDIDATES.length,
-            enrolled: newFaces.length,
+            enrolled: 0,
             rejected: FACE_ENROLLMENT_CANDIDATES.length - eligibleFaces.length,
-            capacitySkipped: eligibleFaces.length - newFaces.length,
-            addedCandidateIds: addedCandidates.map((candidate) => candidate.id),
+            capacitySkipped: 0,
+            addedCandidateIds: [],
           },
         };
       });
-      flash(enrolledCount > 0 ? `已登錄 ${enrolledCount} 張人臉` : "未新增人臉");
       faceEnrollTimerRef.current = null;
     }, 1000);
+  };
+  const addAllEligibleFaces = () => {
+    if (trk.faceCaptureState !== "complete" || faceSelectFlow.stage !== "ready" || trk.enrolledFaces.length >= 20) return;
+    const eligibleFaces = FACE_ENROLLMENT_CANDIDATES.filter((candidate) => candidate.status === "eligible");
+    const availableSlots = Math.max(0, 20 - trk.enrolledFaces.length);
+    const addedCount = Math.min(eligibleFaces.length, availableSlots);
+    if (addedCount === 0) return;
+    setFaceSelectCoachmarkVisible(false);
+    setFaceSelectCoachmarkDismissed(true);
+    setTrk((p) => {
+      const existingAddedIds = new Set(p.faceBatchResult?.addedCandidateIds ?? []);
+      const batchCandidates = FACE_ENROLLMENT_CANDIDATES.filter((candidate) => candidate.status === "eligible");
+      const slots = Math.max(0, 20 - p.enrolledFaces.length);
+      const addedCandidates = batchCandidates.slice(0, slots);
+      const batchId = Date.now();
+      const newFaces = addedCandidates.map((candidate, index) => ({
+        id: batchId + index,
+        name: "",
+        priority: p.enrolledFaces.length + index + 1,
+        candidateId: candidate.id,
+      }));
+      return {
+        ...p,
+        enrolledFaces: [...p.enrolledFaces, ...newFaces],
+        faceBatchResult: {
+          ...(p.faceBatchResult ?? {}),
+          enrolled: (p.faceBatchResult?.enrolled ?? 0) + newFaces.length,
+          capacitySkipped: Math.max(0, batchCandidates.length - newFaces.length),
+          addedCandidateIds: [...existingAddedIds, ...addedCandidates.map((candidate) => candidate.id)],
+        },
+      };
+    });
   };
   const resumeFaceEnrollmentLiveView = () => {
     if (faceSelectFlow.stage !== "ready") return;
@@ -1469,35 +1499,31 @@ export default function App() {
   }, [trk.faceCaptureState, faceSelectFlow.stage, faceSelectCoachmarkDismissed, trk.enrolledFaces.length]);
   const startFaceAdd = (candidateId) => {
     const candidate = FACE_ENROLLMENT_CANDIDATES.find((item) => item.id === candidateId);
-    if (!candidate || candidate.status !== "eligible" || trk.faceCaptureState !== "complete" || faceSelectFlow.stage !== "ready") return;
-    clearFaceSelectTimers();
+    if (!candidate || candidate.status !== "eligible" || trk.faceCaptureState !== "complete" || faceSelectFlow.stage !== "ready" || trk.enrolledFaces.length >= 20) return;
     setFaceSelectCoachmarkDismissed(true);
     setFaceSelectCoachmarkVisible(false);
     setHoveredFaceCandidateId(null);
-    setFaceSelectFlow({ stage: "zooming", candidateId });
-    faceSelectTimersRef.current = [
-      setTimeout(() => setFaceSelectFlow({ stage: "capturing", candidateId }), 1300),
-      setTimeout(() => {
-        setFaceSelectFlow({ stage: "saving", candidateId });
-        setTrk((p) => {
-          const capturedAt = Date.now();
-          const newFace = {
-            id: capturedAt,
-            name: "",
-            priority: p.enrolledFaces.length + 1,
-            candidateId,
-            liveCapturedAt: capturedAt,
-            captureVersion: 1,
-          };
-          return { ...p, enrolledFaces: [...p.enrolledFaces, newFace] };
-        });
-      }, 2100),
-      setTimeout(() => setFaceSelectFlow({ stage: "restoring", candidateId }), 2450),
-      setTimeout(() => {
-        setFaceSelectFlow({ stage: "ready", candidateId: null });
-        faceSelectTimersRef.current = [];
-      }, 3800),
-    ];
+    setTrk((p) => {
+      if (p.enrolledFaces.length >= 20) return p;
+      const capturedAt = Date.now();
+      const newFace = {
+        id: capturedAt,
+        name: "",
+        priority: p.enrolledFaces.length + 1,
+        candidateId,
+      };
+      const addedCandidateIds = new Set(p.faceBatchResult?.addedCandidateIds ?? []);
+      addedCandidateIds.add(candidateId);
+      return {
+        ...p,
+        enrolledFaces: [...p.enrolledFaces, newFace],
+        faceBatchResult: {
+          ...(p.faceBatchResult ?? {}),
+          enrolled: (p.faceBatchResult?.enrolled ?? 0) + 1,
+          addedCandidateIds: [...addedCandidateIds],
+        },
+      };
+    });
   };
   useEffect(() => () => {
     if (faceEnrollTimerRef.current) clearTimeout(faceEnrollTimerRef.current);
@@ -1542,20 +1568,24 @@ export default function App() {
     focusNear: "1.5m", afMode: "Continuous AF", digitalZoom: false, digitalZoomLimit: 12,
     relativeZoom: false, presetAffects: false,
     presetSaveNumber: "0", presetVideoFreeze: false, presetAccuracy: true,
-    presetSpeed: 50, selectedQuickCall: null, appliedPresetId: 0,
-    presetNames: Array.from({ length: 20 }, (_, index) => `Preset${index}`),
-    savedPresetIds: [0, 1],
+    presetSpeed: 50, selectedQuickCall: null, appliedPresetId: null,
+    presetNames: Array.from({ length: LIVE_PRESET_COUNT }, (_, index) => `Preset${index}`),
+    savedPresetIds: [],
     activePreviewImage: "meeting_room.png",
-    presetSnapshots: {
-      0: { image: "meeting_room.png", pan: 0, tilt: 0, zoom: 1 },
-      1: { image: FACE_ENROLLMENT_DEMO_IMAGE, pan: 0, tilt: 0, zoom: 1 },
-    },
+    presetSnapshots: {},
   });
   const updLive = (k, v) => setLive((c) => ({ ...c, [k]: v }));
   const [editingLivePresetId, setEditingLivePresetId] = useState(null);
   const [livePresetNameDraft, setLivePresetNameDraft] = useState("");
   const [resetLivePresetTarget, setResetLivePresetTarget] = useState(null);
+  const [livePresetPage, setLivePresetPage] = useState(0);
   const livePresetCardRefs = useRef([]);
+  const livePresetPageStart = livePresetPage * LIVE_PRESETS_PER_PAGE;
+  const livePresetPageEnd = Math.min(livePresetPageStart + LIVE_PRESETS_PER_PAGE, LIVE_PRESET_COUNT);
+  const visibleLivePresetIds = Array.from(
+    { length: livePresetPageEnd - livePresetPageStart },
+    (_, index) => livePresetPageStart + index,
+  );
   const beginLivePresetRename = (presetId) => {
     setEditingLivePresetId(presetId);
     setLivePresetNameDraft(live.presetNames[presetId]);
@@ -1572,11 +1602,12 @@ export default function App() {
   };
   const saveLivePreset = () => {
     const presetId = Number.parseInt(live.presetSaveNumber, 10);
-    if (!Number.isInteger(presetId) || presetId < 0 || presetId > 19) {
-      flash("Use preset 0–19");
+    if (!Number.isInteger(presetId) || presetId < 0 || presetId >= LIVE_PRESET_COUNT) {
+      flash("Use preset 0–255");
       return;
     }
     const isOverwrite = Boolean(live.presetSnapshots[presetId]);
+    setLivePresetPage(Math.floor(presetId / LIVE_PRESETS_PER_PAGE));
     setLive((current) => ({
       ...current,
       savedPresetIds: current.savedPresetIds.includes(presetId)
@@ -1594,15 +1625,21 @@ export default function App() {
       selectedQuickCall: presetId,
       appliedPresetId: presetId,
     }));
-    window.requestAnimationFrame(() => {
+    flash(`Preset ${presetId} ${isOverwrite ? "updated" : "saved"}`);
+  };
+
+  useEffect(() => {
+    const presetId = live.selectedQuickCall;
+    if (presetId == null || Math.floor(presetId / LIVE_PRESETS_PER_PAGE) !== livePresetPage) return;
+    const frame = window.requestAnimationFrame(() => {
       livePresetCardRefs.current[presetId]?.scrollIntoView({
         behavior: "smooth",
         block: "nearest",
         inline: "nearest",
       });
     });
-    flash(`Preset ${presetId} ${isOverwrite ? "updated" : "saved"}`);
-  };
+    return () => window.cancelAnimationFrame(frame);
+  }, [live.selectedQuickCall, live.savedPresetIds, livePresetPage]);
 
   // PTZ 控制狀態 (Live View 與 Tracking Settings 連動)
   const [ptz, setPtz] = useState({ pan: 0, tilt: 0, zoom: 1.0 });
@@ -2012,7 +2049,7 @@ export default function App() {
     const bl_r = master + rOffset;
     const bl_g = master;
     const bl_b = master + bOffset;
-    const kneeOn = true;
+    const kneeOn = !!activeSt.kneeOn;
     let kp, slope;
     if (activeSt.autoKnee) {
       kp = 85 / 109;
@@ -2319,7 +2356,7 @@ export default function App() {
     if (id === "matrix") return !!(st.level || st.phase || st.rg || st.rb || st.gr || st.gb || st.br || st.bg);
     if (id === "multi") return AXIS16.some((a) => st.axes[a].hue || st.axes[a].sat);
     if (id === "detail") return st.detail !== 0;
-    if (id === "knee") return st.autoKnee || st.kneePoint !== 95 || st.kneeSlope !== 0;
+    if (id === "knee") return !!st.kneeOn;
     if (id === "black") return (st.masterBlack ?? 0) !== 0 || (st.rBlack ?? 0) !== 0 || (st.bBlack ?? 0) !== 0;
     return false;
   };
@@ -3061,7 +3098,7 @@ export default function App() {
             title="Knee" 
             right={
               <div style={{ width: 80, display: "flex" }}>
-                <MiniBtn onClick={() => setSt((s) => ({ ...s, autoKnee: false, kneePoint: 95, kneeSlope: 0 }))}>Default</MiniBtn>
+                <MiniBtn onClick={() => setSt((s) => ({ ...s, kneeOn: false, autoKnee: false, kneePoint: 95, kneeSlope: 0 }))}>Default</MiniBtn>
               </div>
             }
           />
@@ -3078,7 +3115,15 @@ export default function App() {
               flexDirection: "column",
               gap: 12
             }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 6 }}>
+              <div id="aver-knee-setting" style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 2 }}>
+                <span style={{ width: 72, fontSize: 13, color: T.text, fontWeight: 500, fontFamily: fUI }}>Setting</span>
+                <div style={{ display: "flex", gap: 14 }}>
+                  <CamRadio id="aver-knee-radio-setting-on" label="On" checked={st.kneeOn} onChange={() => upd("kneeOn", true)} />
+                  <CamRadio id="aver-knee-radio-setting-off" label="Off" checked={!st.kneeOn} onChange={() => upd("kneeOn", false)} />
+                </div>
+              </div>
+              <div style={{ height: 1, background: T.line, margin: "2px 0 4px" }} />
+              <div style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 6, opacity: st.kneeOn ? 1 : 0.4, pointerEvents: st.kneeOn ? "auto" : "none" }}>
                 <span style={{ fontSize: 13, color: T.text, fontWeight: 500, fontFamily: fUI }}>Auto Knee</span>
                 <div style={{ display: "flex", gap: 14 }}>
                   <CamRadio id="aver-knee-radio-auto-on" label="On" checked={st.autoKnee} onChange={() => upd("autoKnee", true)} />
@@ -3086,8 +3131,8 @@ export default function App() {
                 </div>
               </div>
               
-              <Slider k="kneePoint" label="Point" hint="" min={75} max={105} val={st.kneePoint} onChange={(v) => upd("kneePoint", v)} neutral={95} onStartDrag={startDrag} onEndDrag={endDrag} disabled={st.autoKnee} />
-              <Slider k="kneeSlope" label="Slope" hint="" min={-5} max={5} val={st.kneeSlope} onChange={(v) => upd("kneeSlope", v)} onStartDrag={startDrag} onEndDrag={endDrag} disabled={st.autoKnee} />
+              <Slider k="kneePoint" label="Point" hint="" min={75} max={105} val={st.kneePoint} onChange={(v) => upd("kneePoint", v)} neutral={95} onStartDrag={startDrag} onEndDrag={endDrag} disabled={!st.kneeOn || st.autoKnee} />
+              <Slider k="kneeSlope" label="Slope" hint="" min={-5} max={5} val={st.kneeSlope} onChange={(v) => upd("kneeSlope", v)} onStartDrag={startDrag} onEndDrag={endDrag} disabled={!st.kneeOn || st.autoKnee} />
             </div>
           </div>
         </div>
@@ -3390,27 +3435,36 @@ export default function App() {
         }
 
         /* Keep Live View usable on narrower laptop screens without changing the
-           desktop 1 : 1.2 : 2 preset layout. */
+           desktop 1 : 1 : 2 preset layout. */
         @media (max-width: 1120px) {
           #aver-live-control-panel {
-            flex-basis: 340px !important;
-            height: 340px !important;
+            flex-basis: 300px !important;
+            height: 300px !important;
+          }
+          #aver-live-control-content-row {
+            gap: 6px !important;
+            padding: 6px !important;
+          }
+          #aver-live-shared-ptz-control {
+            flex-basis: 190px !important;
+            min-width: 190px !important;
+            padding: 7px !important;
+          }
+          #aver-live-camera-control-subpanel {
+            grid-template-columns: 190px minmax(180px, 1fr) minmax(180px, 1fr) !important;
+            gap: 6px !important;
           }
           #aver-live-preset-subpanel {
             overflow-x: hidden !important;
-            overflow-y: auto !important;
+            overflow-y: hidden !important;
           }
           #aver-live-preset-layout-row {
-            flex-wrap: wrap !important;
-            align-content: flex-start !important;
-            height: auto !important;
-          }
-          #aver-live-preset-layout-row #aver-live-preset-ptz-control {
-            flex: 1 1 260px !important;
-            align-self: auto !important;
+            flex-wrap: nowrap !important;
+            height: 100% !important;
           }
           #aver-live-preset-layout-row #aver-live-preset-save-options {
-            flex: 1.2 1 218px !important;
+            flex: 0 0 190px !important;
+            min-width: 190px !important;
           }
           #aver-live-preset-layout-row #aver-live-preset-load-options {
             flex: 1 1 100% !important;
@@ -3512,6 +3566,20 @@ export default function App() {
             width: 100% !important;
             height: auto !important;
             min-height: 0 !important;
+            overflow: visible !important;
+          }
+          #aver-live-control-content-row {
+            flex-direction: column !important;
+            overflow: visible !important;
+          }
+          #aver-live-shared-ptz-control {
+            width: 100% !important;
+            min-width: 0 !important;
+            flex: 0 0 auto !important;
+          }
+          #aver-live-camera-control-subpanel {
+            width: 100% !important;
+            grid-template-columns: 1fr !important;
             overflow: visible !important;
           }
           #aver-live-preset-subpanel {
@@ -3864,7 +3932,7 @@ export default function App() {
         id="aver-version-switcher"
         title="Switch prototype version"
         onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setVersionMenuOpen(false); }}
-        style={{ position: "fixed", right: 14, top: 12, zIndex: 90, width: 264, color: T.dim, fontFamily: fUI }}
+        style={{ position: "fixed", right: 14, top: 12, zIndex: 90, width: 150, color: T.dim, fontFamily: fUI }}
       >
         <button
           id="aver-version-switcher-button"
@@ -3876,13 +3944,14 @@ export default function App() {
           style={{ width: "100%", height: 34, padding: "0 10px", display: "flex", alignItems: "center", gap: 8, borderRadius: 6, border: `1px solid ${versionMenuOpen ? T.blue : T.line2}`, outline: "none", background: "rgba(16,18,22,0.96)", boxShadow: versionMenuOpen ? "0 0 0 2px rgba(30,155,240,0.15), 0 4px 14px rgba(0,0,0,0.34)" : "0 4px 14px rgba(0,0,0,0.34)", color: "#fff", fontFamily: fUI, fontSize: 11.5, fontWeight: 600, cursor: "pointer", textAlign: "left" }}
         >
           <span aria-hidden="true" style={{ width: 7, height: 7, flexShrink: 0, borderRadius: "50%", background: T.blue, boxShadow: `0 0 7px ${T.blue}` }} />
-          <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>V2 — Face Enrollment Development</span>
+          <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>V3 · 08/11</span>
           <span aria-hidden="true" style={{ color: T.dim, fontSize: 11, transform: versionMenuOpen ? "rotate(180deg)" : "none", transition: "transform 0.16s ease" }}>▼</span>
         </button>
         {versionMenuOpen && (
           <div id="aver-version-switcher-menu" role="listbox" aria-label="Prototype versions" style={{ position: "absolute", top: 38, left: 0, width: "100%", boxSizing: "border-box", padding: 4, borderRadius: 6, border: `1px solid ${T.line2}`, background: T.panel2, boxShadow: "0 10px 28px rgba(0,0,0,0.46)", overflow: "hidden" }}>
-            <button id="aver-version-option-v1" type="button" role="option" aria-selected="false" onClick={() => window.location.assign(["localhost", "127.0.0.1"].includes(window.location.hostname) ? "http://127.0.0.1:5173/" : `${import.meta.env.BASE_URL}v1/`)} onMouseEnter={(event) => { event.currentTarget.style.background = "rgba(255,255,255,0.06)"; }} onMouseLeave={(event) => { event.currentTarget.style.background = "transparent"; }} style={{ width: "100%", minHeight: 32, padding: "6px 9px", border: "none", borderRadius: 4, background: "transparent", color: T.dim, fontFamily: fUI, fontSize: 11.5, textAlign: "left", cursor: "pointer" }}>V1 — Preset UX Baseline</button>
-            <button id="aver-version-option-v2" type="button" role="option" aria-selected="true" onClick={() => setVersionMenuOpen(false)} style={{ width: "100%", minHeight: 32, padding: "6px 9px", border: "none", borderRadius: 4, background: "rgba(30,155,240,0.16)", color: "#fff", fontFamily: fUI, fontSize: 11.5, fontWeight: 600, textAlign: "left", cursor: "pointer", boxShadow: `inset 2px 0 0 ${T.blue}` }}>V2 — Face Enrollment Development</button>
+            <button id="aver-version-option-v1" type="button" role="option" aria-selected="false" onClick={() => window.location.assign(`${import.meta.env.BASE_URL}v1/index.html`)} onMouseEnter={(event) => { event.currentTarget.style.background = "rgba(255,255,255,0.06)"; }} onMouseLeave={(event) => { event.currentTarget.style.background = "transparent"; }} style={{ width: "100%", minHeight: 32, padding: "6px 9px", border: "none", borderRadius: 4, background: "transparent", color: T.dim, fontFamily: fUI, fontSize: 11.5, textAlign: "left", cursor: "pointer" }}>V1 · 08/10</button>
+            <button id="aver-version-option-v2" type="button" role="option" aria-selected="false" onClick={() => window.location.assign(`${import.meta.env.BASE_URL}v2/index.html`)} onMouseEnter={(event) => { event.currentTarget.style.background = "rgba(255,255,255,0.06)"; }} onMouseLeave={(event) => { event.currentTarget.style.background = "transparent"; }} style={{ width: "100%", minHeight: 32, padding: "6px 9px", border: "none", borderRadius: 4, background: "transparent", color: T.dim, fontFamily: fUI, fontSize: 11.5, textAlign: "left", cursor: "pointer" }}>V2 · 08/10</button>
+            <button id="aver-version-option-v3" type="button" role="option" aria-selected="true" onClick={() => setVersionMenuOpen(false)} style={{ width: "100%", minHeight: 32, padding: "6px 9px", border: "none", borderRadius: 4, background: "rgba(30,155,240,0.16)", color: "#fff", fontFamily: fUI, fontSize: 11.5, fontWeight: 600, textAlign: "left", cursor: "pointer", boxShadow: `inset 2px 0 0 ${T.blue}` }}>V3 · 08/11</button>
           </div>
         )}
       </div>
@@ -4228,16 +4297,36 @@ export default function App() {
           )}
         </div>
         ) : activeMenu === "live" ? (
-          <div id="aver-live-view-wrapper" style={{ display: "flex", flexDirection: "column", gap: SP[2], width: "min(calc(75vw - 40px), 100%)", marginLeft: "max(0px, calc(16.6667vw - 225.33px))", height: "100%", minHeight: 0 }}>
+          <div id="aver-live-view-wrapper" style={{ display: "flex", flexDirection: "column", gap: SP[2], width: "min(1200px, 100%)", marginInline: "auto", height: "100%", minHeight: 0 }}>
             {(() => {
               const sqStyle = (active) => ({ width: 42, height: 42, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", borderRadius: 8, border: `1px solid ${active ? T.blue : T.line2}`, background: active ? T.blue : T.panel2, color: active ? "#fff" : T.text, fontSize: 17, fontFamily: fUI });
-              const presetPtzSqStyle = { ...sqStyle(false), width: 52, height: 52, fontSize: 20 };
               const sec = { border: `1px solid ${T.line}`, borderRadius: 8, padding: "10px 12px", background: "rgba(0,0,0,0.12)", boxSizing: "border-box" };
               const secTitle = { fontSize: 12, color: T.faint, fontWeight: 600, marginBottom: 8 };
               const presetSection = { background: "rgba(255,255,255,0.035)", border: `1px solid ${T.line}`, borderRadius: 6, overflow: "hidden", boxSizing: "border-box" };
               const presetHeader = { height: 25, padding: "0 8px", display: "flex", alignItems: "center", background: "rgba(255,255,255,0.07)", borderBottom: `1px solid ${T.line}`, color: T.text, fontSize: 12, fontWeight: 600, boxSizing: "border-box" };
               const presetInput = { height: 30, minWidth: 0, boxSizing: "border-box", padding: "0 8px", borderRadius: 4, border: `1px solid ${T.line2}`, background: "#101216", color: T.text, fontFamily: fMono, fontSize: 13 };
               const presetButton = { height: 30, padding: "0 14px", boxSizing: "border-box", cursor: "pointer", borderRadius: 4, border: `1px solid ${T.line2}`, background: "#101216", color: T.text, fontFamily: fUI, fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" };
+              const sharedPtzButtonStyle = { ...sqStyle(false), width: 40, height: 40, fontSize: 16 };
+              const sharedPtzControl = (
+                <div id="aver-live-shared-ptz-control" style={{ ...sec, flex: "0 0 210px", minWidth: 210, padding: "10px", display: "flex", alignItems: "center", justifyContent: "space-evenly", gap: 8, alignSelf: "stretch" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 40px)", gridTemplateRows: "repeat(3, 40px)", gap: 5 }}>
+                    <span />
+                    <button id="aver-live-btn-pan-up" type="button" aria-label="Tilt up" onClick={() => handlePtz("up")} style={sharedPtzButtonStyle}>▲</button>
+                    <span />
+                    <button id="aver-live-btn-pan-left" type="button" aria-label="Pan left" onClick={() => handlePtz("left")} style={sharedPtzButtonStyle}>◀</button>
+                    <button id="aver-live-btn-pan-home" type="button" aria-label="Reset PTZ view" onClick={() => handlePtz("home")} style={{ ...sharedPtzButtonStyle, borderRadius: "50%", fontSize: 15 }}>⌂</button>
+                    <button id="aver-live-btn-pan-right" type="button" aria-label="Pan right" onClick={() => handlePtz("right")} style={sharedPtzButtonStyle}>▶</button>
+                    <span />
+                    <button id="aver-live-btn-pan-down" type="button" aria-label="Tilt down" onClick={() => handlePtz("down")} style={sharedPtzButtonStyle}>▼</button>
+                    <span />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
+                    <button id="aver-live-btn-zoom-in" type="button" aria-label="Zoom in" onClick={() => handlePtz("zoom_in")} style={sharedPtzButtonStyle}>＋</button>
+                    <span style={{ fontSize: 11.5, color: T.faint }}>Zoom</span>
+                    <button id="aver-live-btn-zoom-out" type="button" aria-label="Zoom out" onClick={() => handlePtz("zoom_out")} style={sharedPtzButtonStyle}>－</button>
+                  </div>
+                </div>
+              );
               return (
                 <>
                   {/* 預覽畫面外層 container: 填滿剩餘高度與寬度 */}
@@ -4263,51 +4352,36 @@ export default function App() {
                       ))}
                     </div>
 
+                    <div id="aver-live-control-content-row" style={{ display: "flex", gap: 8, padding: 8, flex: 1, minHeight: 0, overflow: "hidden", boxSizing: "border-box" }}>
+                    {sharedPtzControl}
                     {live.tab === "control" ? (
                       /* ===== Camera Control ===== */
-                      <div id="aver-live-camera-control-subpanel" style={{ display: "flex", flexWrap: "wrap", gap: SP[3], padding: `${SP[2]}px ${SP[3]}px`, alignItems: "stretch", flex: 1, minHeight: 0, overflow: "hidden", boxSizing: "border-box", alignContent: "stretch" }}>
-                        {/* 方向盤 + Zoom */}
-                        <div style={{ ...sec, display: "flex", gap: 14, alignItems: "center" }}>
-                          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 42px)", gridTemplateRows: "repeat(3, 42px)", gap: 5 }}>
-                            <span />
-                            <button id="aver-live-btn-pan-up" onClick={() => handlePtz("up")} style={sqStyle(false)}>▲</button>
-                            <span />
-                            <button id="aver-live-btn-pan-left" onClick={() => handlePtz("left")} style={sqStyle(false)}>◀</button>
-                            <button id="aver-live-btn-pan-home" onClick={() => handlePtz("home")} style={{ ...sqStyle(false), borderRadius: "50%", fontSize: 15 }}>⌂</button>
-                            <button id="aver-live-btn-pan-right" onClick={() => handlePtz("right")} style={sqStyle(false)}>▶</button>
-                            <span />
-                            <button id="aver-live-btn-pan-down" onClick={() => handlePtz("down")} style={sqStyle(false)}>▼</button>
-                            <span />
-                          </div>
-                          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-                            <span style={{ fontSize: 12, color: T.faint }}>Zoom</span>
-                            <button id="aver-live-btn-zoom-in" onClick={() => handlePtz("zoom_in")} style={sqStyle(false)}>＋</button>
-                            <button id="aver-live-btn-zoom-out" onClick={() => handlePtz("zoom_out")} style={sqStyle(false)}>－</button>
-                          </div>
-                        </div>
+                      <div id="aver-live-camera-control-subpanel" style={{ display: "grid", gridTemplateColumns: "210px minmax(205px, 1fr) minmax(205px, 1fr)", gap: 8, flex: 1, minWidth: 0, minHeight: 0, overflow: "hidden", boxSizing: "border-box" }}>
 
                         {/* 對焦 */}
-                        <div style={{ ...sec, display: "flex", gap: 14 }}>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                            <button id="aver-live-btn-focus-af" onClick={() => updLive("focusMode", "af")} style={sqStyle(live.focusMode === "af")}>AF</button>
-                            <button id="aver-live-btn-focus-mf" onClick={() => updLive("focusMode", "mf")} style={sqStyle(live.focusMode === "mf")}>MF</button>
-                            <button id="aver-live-btn-focus-onepush" title="One-Push AF" style={sqStyle(false)}>◎</button>
+                        <div id="aver-live-focus-control-group" style={{ ...sec, minWidth: 0, padding: "7px 9px", display: "flex", flexDirection: "column", gap: 4, overflow: "hidden" }}>
+                          <div id="aver-live-focus-action-row" style={{ display: "flex", gap: 6, alignItems: "stretch" }}>
+                            <div id="aver-live-focus-mode-panel" style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4, minWidth: 76, padding: 4, borderRadius: 6, border: `1px solid ${T.line}`, background: "rgba(255,255,255,0.025)" }}>
+                              <button id="aver-live-btn-focus-af" onClick={() => updLive("focusMode", "af")} style={{ ...sqStyle(live.focusMode === "af"), width: "100%", height: 34, fontSize: 14, fontWeight: 700 }}>AF</button>
+                              <button id="aver-live-btn-focus-mf" onClick={() => updLive("focusMode", "mf")} style={{ ...sqStyle(live.focusMode === "mf"), width: "100%", height: 34, fontSize: 14, fontWeight: 700 }}>MF</button>
+                              <button id="aver-live-btn-focus-onepush" title="One-Push AF" style={{ ...sqStyle(false), width: "100%", height: 34, fontSize: 16 }}>◎</button>
+                            </div>
+                            <div id="aver-live-focus-step-panel" style={{ width: 58, display: "flex", flexDirection: "column", alignItems: "stretch", justifyContent: "center", gap: 4 }}>
+                              <button id="aver-live-btn-focus-in" disabled={live.focusMode !== "mf"} style={{ ...sqStyle(false), width: "100%", height: 34, opacity: live.focusMode !== "mf" ? 0.4 : 1, cursor: live.focusMode !== "mf" ? "not-allowed" : "pointer" }}>＋</button>
+                              <span id="aver-live-focus-step-label" style={{ minHeight: 20, display: "flex", alignItems: "center", justifyContent: "center", borderTop: `1px solid ${T.line}`, borderBottom: `1px solid ${T.line}`, background: "rgba(255,255,255,0.05)", fontSize: 11, fontWeight: 600, color: T.text }}>Focus</span>
+                              <button id="aver-live-btn-focus-out" disabled={live.focusMode !== "mf"} style={{ ...sqStyle(false), width: "100%", height: 34, opacity: live.focusMode !== "mf" ? 0.4 : 1, cursor: live.focusMode !== "mf" ? "not-allowed" : "pointer" }}>－</button>
+                            </div>
                           </div>
-                          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-                            <span style={{ fontSize: 12, color: T.faint }}>Focus</span>
-                            <button id="aver-live-btn-focus-in" disabled={live.focusMode !== "mf"} style={{ ...sqStyle(false), opacity: live.focusMode !== "mf" ? 0.4 : 1, cursor: live.focusMode !== "mf" ? "not-allowed" : "pointer" }}>＋</button>
-                            <button id="aver-live-btn-focus-out" disabled={live.focusMode !== "mf"} style={{ ...sqStyle(false), opacity: live.focusMode !== "mf" ? 0.4 : 1, cursor: live.focusMode !== "mf" ? "not-allowed" : "pointer" }}>－</button>
-                          </div>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 12, justifyContent: "flex-start", minWidth: 130 }}>
+                          <div id="aver-live-focus-settings" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                             <div>
-                              <div style={secTitle}>Focus Near Limit</div>
-                              <select id="aver-live-select-focus-near" value={live.focusNear} onChange={(e) => updLive("focusNear", e.target.value)} style={{ width: "100%", padding: "7px 9px", fontSize: 13, borderRadius: 6, border: `1px solid ${T.line2}`, background: T.panel2, color: T.text, fontFamily: fUI, cursor: "pointer" }}>
+                              <div style={{ ...secTitle, marginBottom: 4 }}>Focus Near Limit</div>
+                              <select id="aver-live-select-focus-near" value={live.focusNear} onChange={(e) => updLive("focusNear", e.target.value)} style={{ width: "100%", height: 26, padding: "0 7px", fontSize: 12, borderRadius: 4, border: `1px solid ${T.line2}`, background: T.panel2, color: T.text, fontFamily: fUI, cursor: "pointer" }}>
                                 {["1cm", "11cm", "30cm", "50cm", "80cm", "1m", "1.5m", "2m", "3m", "5m", "∞"].map((v) => <option key={v} value={v}>{v}</option>)}
                               </select>
                             </div>
                             <div>
-                              <div style={secTitle}>AF Mode</div>
-                              <select id="aver-live-select-af-mode" value={live.afMode} onChange={(e) => updLive("afMode", e.target.value)} style={{ width: "100%", padding: "7px 9px", fontSize: 13, borderRadius: 6, border: `1px solid ${T.line2}`, background: T.panel2, color: T.text, fontFamily: fUI, cursor: "pointer" }}>
+                              <div style={{ ...secTitle, marginBottom: 4 }}>AF Mode</div>
+                              <select id="aver-live-select-af-mode" value={live.afMode} onChange={(e) => updLive("afMode", e.target.value)} style={{ width: "100%", height: 26, padding: "0 7px", fontSize: 12, borderRadius: 4, border: `1px solid ${T.line2}`, background: T.panel2, color: T.text, fontFamily: fUI, cursor: "pointer" }}>
                                 {["Continuous AF", "One-Push AF", "Manual"].map((v) => <option key={v} value={v}>{v}</option>)}
                               </select>
                             </div>
@@ -4315,20 +4389,20 @@ export default function App() {
                         </div>
 
                         {/* 速度 */}
-                        <div style={{ ...sec, minWidth: colW(5), flex: `1 1 ${colW(5)}px`, display: "flex", flexDirection: "column", gap: 12 }}>
+                        <div style={{ ...sec, minWidth: 0, padding: 7, display: "flex", flexDirection: "column", gap: 6, overflow: "hidden" }}>
                           <ExpSlider id="aver-live-slider-pan-speed" label="Pan Speed" leftLabel="1" rightLabel="24" valueText={"" + live.panSpeed} min={1} max={24} val={live.panSpeed} onChange={(v) => updLive("panSpeed", v)} />
                           <ExpSlider id="aver-live-slider-tilt-speed" label="Tilt Speed" leftLabel="1" rightLabel="24" valueText={"" + live.tiltSpeed} min={1} max={24} val={live.tiltSpeed} onChange={(v) => updLive("tiltSpeed", v)} />
-                          <div>
-                            <div style={secTitle}>Zoom Speed</div>
-                            <div style={{ display: "flex", gap: 28 }}>
-                              <CamRadio id="aver-live-radio-zoom-speed-high" label="High" checked={live.zoomSpeed === "high"} onChange={() => updLive("zoomSpeed", "high")} />
-                              <CamRadio id="aver-live-radio-zoom-speed-low" label="Low" checked={live.zoomSpeed === "low"} onChange={() => updLive("zoomSpeed", "low")} />
+                          <div id="aver-live-zoom-speed-panel" style={{ width: "100%", background: "rgba(255, 255, 255, 0.03)", border: "1px solid rgba(255, 255, 255, 0.10)", borderRadius: 8, overflow: "hidden", boxSizing: "border-box" }}>
+                            <div style={{ padding: "7px 12px", borderBottom: "1px solid rgba(255, 255, 255, 0.08)", background: "rgba(255,255,255,0.035)", fontSize: 12.5, color: T.text, fontWeight: 600 }}>Zoom Speed</div>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-evenly", gap: 16, minHeight: 46, padding: "6px 12px" }}>
+                              <div style={{ flex: 1, display: "flex", justifyContent: "center" }}><CamRadio id="aver-live-radio-zoom-speed-high" label="High" checked={live.zoomSpeed === "high"} onChange={() => updLive("zoomSpeed", "high")} /></div>
+                              <div style={{ flex: 1, display: "flex", justifyContent: "center" }}><CamRadio id="aver-live-radio-zoom-speed-low" label="Low" checked={live.zoomSpeed === "low"} onChange={() => updLive("zoomSpeed", "low")} /></div>
                             </div>
                           </div>
                         </div>
 
                         {/* 數位變焦 */}
-                        <div style={{ ...sec, minWidth: colW(5), flex: `1 1 ${colW(5)}px`, display: "flex", flexDirection: "column", gap: 12 }}>
+                        <div style={{ ...sec, minWidth: 0, padding: 7, display: "flex", flexDirection: "column", gap: 6, overflow: "hidden" }}>
                           <div>
                             <div style={secTitle}>Digital Zoom</div>
                             <div style={{ display: "flex", gap: 28 }}>
@@ -4343,27 +4417,9 @@ export default function App() {
                       </div>
                     ) : (
                       /* ===== Preset(預設位置)===== */
-                      <div id="aver-live-preset-subpanel" style={{ padding: "10px 12px", flex: 1, minHeight: 0, overflow: "auto", boxSizing: "border-box" }}>
+                      <div id="aver-live-preset-subpanel" style={{ flex: 1, minWidth: 0, minHeight: 0, overflow: "hidden", boxSizing: "border-box" }}>
                         <div id="aver-live-preset-layout-row" style={{ display: "flex", gap: 10, minWidth: 0, height: "100%", minHeight: 0 }}>
-                          <div id="aver-live-preset-ptz-control" style={{ ...sec, flex: "1 1 0", minWidth: 260, minHeight: 190, padding: "14px 12px", display: "flex", alignItems: "center", justifyContent: "space-evenly", gap: 12, alignSelf: "stretch" }}>
-                            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 52px)", gridTemplateRows: "repeat(3, 52px)", gap: 7 }}>
-                              <span />
-                              <button id="aver-live-preset-ptz-up-button" type="button" aria-label="Preset panel tilt up" onClick={() => handlePtz("up")} style={presetPtzSqStyle}>▲</button>
-                              <span />
-                              <button id="aver-live-preset-ptz-left-button" type="button" aria-label="Preset panel pan left" onClick={() => handlePtz("left")} style={presetPtzSqStyle}>◀</button>
-                              <button id="aver-live-preset-ptz-home-button" type="button" aria-label="Preset panel reset PTZ view" onClick={() => handlePtz("home")} style={{ ...presetPtzSqStyle, borderRadius: "50%", fontSize: 17 }}>⌂</button>
-                              <button id="aver-live-preset-ptz-right-button" type="button" aria-label="Preset panel pan right" onClick={() => handlePtz("right")} style={presetPtzSqStyle}>▶</button>
-                              <span />
-                              <button id="aver-live-preset-ptz-down-button" type="button" aria-label="Preset panel tilt down" onClick={() => handlePtz("down")} style={presetPtzSqStyle}>▼</button>
-                              <span />
-                            </div>
-                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-                              <button id="aver-live-preset-ptz-zoom-in-button" type="button" aria-label="Preset panel zoom in" onClick={() => handlePtz("zoom_in")} style={presetPtzSqStyle}>＋</button>
-                              <span style={{ fontSize: 12, color: T.faint }}>Zoom</span>
-                              <button id="aver-live-preset-ptz-zoom-out-button" type="button" aria-label="Preset panel zoom out" onClick={() => handlePtz("zoom_out")} style={presetPtzSqStyle}>－</button>
-                            </div>
-                          </div>
-                          <div id="aver-live-preset-save-options" style={{ flex: "1.2 1 0", minWidth: 218, display: "flex", flexDirection: "column", gap: 6 }}>
+                          <div id="aver-live-preset-save-options" style={{ flex: "0 0 210px", minWidth: 210, display: "flex", flexDirection: "column", gap: 6 }}>
                             <label id="aver-live-preset-video-freeze-option" style={{ ...presetSection, minHeight: 34, padding: "0 9px", display: "flex", alignItems: "center", gap: 7, cursor: "pointer", color: T.text, fontSize: 12 }}>
                               <input type="checkbox" checked={live.presetVideoFreeze} onChange={(e) => updLive("presetVideoFreeze", e.target.checked)} />
                               <span>Video Freeze while Preset</span>
@@ -4383,30 +4439,35 @@ export default function App() {
                           <div id="aver-live-preset-load-options" style={{ ...presetSection, flex: "2 1 0", minWidth: 360, display: "flex", flexDirection: "column" }}>
                             <div style={presetHeader}>Preset Library</div>
                             <div id="aver-live-preset-library-body" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", alignItems: "stretch", gap: 6, padding: 7 }}>
-                            <div id="aver-live-preset-save-panel" style={{ ...presetSection, flex: "0 0 auto" }}>
-                              <div style={{ display: "flex", gap: 7, padding: 7, alignItems: "center" }}>
-                                <div id="aver-live-preset-save-reset-group" style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>
-                                  <span style={{ color: T.faint, fontSize: 11.5, fontWeight: 600, whiteSpace: "nowrap" }}>Save Preset</span>
-                                  <input id="aver-live-preset-save-number" aria-label="Save preset number" type="number" min="0" max="19" value={live.presetSaveNumber} onChange={(event) => updLive("presetSaveNumber", event.target.value)} style={{ ...presetInput, width: 58, height: 27, flex: "0 0 58px" }} />
-                                  <button id="aver-live-preset-save-button" type="button" onClick={saveLivePreset} style={{ ...presetButton, height: 27, padding: "0 12px" }}>Save</button>
+                            <div id="aver-live-preset-save-panel" style={{ flex: "0 0 auto", minWidth: 0 }}>
+                              <div style={{ display: "flex", flexWrap: "wrap", columnGap: 6, rowGap: 4, padding: "0 0 2px", alignItems: "center" }}>
+                                <div id="aver-live-preset-save-reset-group" style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                                  <span style={{ color: T.faint, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>Save Preset</span>
+                                  <input id="aver-live-preset-save-number" aria-label="Save preset number" type="number" min="0" max="255" value={live.presetSaveNumber} onChange={(event) => updLive("presetSaveNumber", event.target.value)} style={{ ...presetInput, width: 54, height: 23, flex: "0 0 54px", fontSize: 11.5 }} />
+                                  <button id="aver-live-preset-save-button" type="button" onClick={saveLivePreset} style={{ ...presetButton, height: 23, padding: "0 10px", fontSize: 11 }}>Save</button>
                                   <button
                                     id="aver-live-preset-reset-button"
                                     type="button"
                                     disabled={live.selectedQuickCall == null || !live.presetSnapshots[live.selectedQuickCall]}
                                     onClick={openResetLivePresetDialog}
-                                    style={{ ...presetButton, height: 27, padding: "0 10px", color: live.selectedQuickCall != null && live.presetSnapshots[live.selectedQuickCall] ? T.text : T.faint, cursor: live.selectedQuickCall != null && live.presetSnapshots[live.selectedQuickCall] ? "pointer" : "not-allowed", opacity: live.selectedQuickCall != null && live.presetSnapshots[live.selectedQuickCall] ? 1 : 0.48 }}
+                                    style={{ ...presetButton, height: 23, padding: "0 9px", fontSize: 11, color: live.selectedQuickCall != null && live.presetSnapshots[live.selectedQuickCall] ? T.text : T.faint, cursor: live.selectedQuickCall != null && live.presetSnapshots[live.selectedQuickCall] ? "pointer" : "not-allowed", opacity: live.selectedQuickCall != null && live.presetSnapshots[live.selectedQuickCall] ? 1 : 0.48 }}
                                   >
                                     Reset
                                   </button>
                                 </div>
-                                <div aria-hidden="true" style={{ alignSelf: "stretch", width: 1, background: T.line2, margin: "0 3px" }} />
-                                <button id="aver-live-preset-edit-scenes-button" type="button" onClick={() => flash("Edit Scenes ready")} style={{ ...presetButton, height: 27, padding: "0 10px", marginLeft: "auto" }}>Edit Scenes</button>
+                                <div aria-hidden="true" style={{ alignSelf: "stretch", width: 1, background: T.line2, margin: "0 2px" }} />
+                                <button id="aver-live-preset-edit-scenes-button" type="button" onClick={() => flash("Edit Scenes ready")} style={{ ...presetButton, height: 23, padding: "0 9px", fontSize: 11 }}>Edit Scenes</button>
+                                <div id="aver-live-preset-pagination" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
+                                  <button id="aver-live-preset-page-previous" type="button" aria-label="Previous preset page" disabled={livePresetPage === 0} onClick={() => setLivePresetPage((page) => Math.max(0, page - 1))} style={{ ...presetButton, height: 21, minWidth: 25, padding: "0 6px", opacity: livePresetPage === 0 ? 0.42 : 1, cursor: livePresetPage === 0 ? "not-allowed" : "pointer" }}>‹</button>
+                                  <span id="aver-live-preset-page-status" style={{ minWidth: 62, color: T.text, fontFamily: fMono, fontSize: 10.5, textAlign: "center" }}>{livePresetPage + 1} / {LIVE_PRESET_PAGE_COUNT}</span>
+                                  <button id="aver-live-preset-page-next" type="button" aria-label="Next preset page" disabled={livePresetPage === LIVE_PRESET_PAGE_COUNT - 1} onClick={() => setLivePresetPage((page) => Math.min(LIVE_PRESET_PAGE_COUNT - 1, page + 1))} style={{ ...presetButton, height: 21, minWidth: 25, padding: "0 6px", opacity: livePresetPage === LIVE_PRESET_PAGE_COUNT - 1 ? 0.42 : 1, cursor: livePresetPage === LIVE_PRESET_PAGE_COUNT - 1 ? "not-allowed" : "pointer" }}>›</button>
+                                </div>
                               </div>
                             </div>
-                            <div id="aver-live-preset-library-cards-column" style={{ flex: "1 1 0", minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" }}>
-                              <div id="aver-live-preset-card-scroll" style={{ flex: 1, minHeight: 0, overflowY: "auto", paddingRight: 3, scrollbarColor: `${T.line2} transparent` }}>
-                                <div id="aver-live-preset-quick-call-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(108px, 1fr))", gap: 7 }}>
-                                  {Array.from({ length: 20 }, (_, n) => {
+                            <div id="aver-live-preset-library-cards-column" style={{ flex: "1 1 0", minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", gap: 5 }}>
+                              <div id="aver-live-preset-card-scroll" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+                                <div id="aver-live-preset-quick-call-grid" style={{ height: "100%", display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gridTemplateRows: "repeat(2, minmax(0, 1fr))", gap: 6 }}>
+                                  {visibleLivePresetIds.map((n) => {
                                     const snapshot = live.presetSnapshots[n];
                                     const saved = live.savedPresetIds.includes(n) && Boolean(snapshot);
                                     const selected = live.selectedQuickCall === n;
@@ -4431,17 +4492,17 @@ export default function App() {
                                             setLive((current) => ({ ...current, selectedQuickCall: n, presetSaveNumber: String(n) }));
                                           }
                                         }}
-                                        style={{ minWidth: 0, overflow: "hidden", boxSizing: "border-box", outline: "none", borderRadius: 5, border: `${applied ? 3 : selected ? 2 : 1}px solid ${applied ? T.blue : selected ? "#59616b" : T.line}`, background: applied ? "rgba(23,145,236,0.12)" : selected ? "rgba(255,255,255,0.028)" : "#101216", boxShadow: applied ? "0 0 0 1px rgba(23,145,236,0.35)" : "none", userSelect: "none", cursor: "pointer", transition: "background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease" }}
+                                        style={{ minWidth: 0, minHeight: 0, overflow: "hidden", boxSizing: "border-box", outline: "none", borderRadius: 5, border: `${applied ? 3 : selected ? 2 : 1}px solid ${applied ? T.blue : selected ? "#59616b" : T.line}`, background: applied ? "rgba(23,145,236,0.12)" : selected ? "rgba(255,255,255,0.028)" : "#101216", boxShadow: applied ? "0 0 0 1px rgba(23,145,236,0.35)" : "none", userSelect: "none", cursor: "pointer", transition: "background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease", display: "flex", flexDirection: "column" }}
                                       >
                                         <div
                                           id={`aver-live-preset-thumbnail-${n}`}
                                           aria-hidden="true"
-                                          style={{ position: "relative", width: "100%", aspectRatio: "16 / 9", display: "block", overflow: "hidden", padding: 0, border: "none", borderBottom: `1px solid ${T.line}`, background: saved ? "#000" : "linear-gradient(145deg, #181c22, #0d1014)" }}
+                                          style={{ position: "relative", width: "100%", flex: "1 1 auto", minHeight: 0, display: "block", overflow: "hidden", padding: 0, border: "none", borderBottom: `1px solid ${T.line}`, background: saved ? "#000" : "linear-gradient(145deg, #181c22, #0d1014)" }}
                                         >
                                           {saved && (
                                             <span aria-hidden="true" style={{ position: "absolute", inset: 0, backgroundImage: `linear-gradient(rgba(0,0,0,0.04), rgba(0,0,0,0.16)), url(${snapshot.image})`, backgroundSize: "cover", backgroundPosition: "center", backgroundRepeat: "no-repeat", transform: `translate(${snapshot.pan}%, ${snapshot.tilt}%) scale(${snapshot.zoom * 1.65})`, transformOrigin: "center" }} />
                                           )}
-                                          <span style={{ position: "absolute", zIndex: 1, left: 5, top: 4, minWidth: 20, height: 18, padding: "0 4px", boxSizing: "border-box", display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: 3, background: "rgba(0,0,0,0.72)", color: "#fff", fontFamily: fMono, fontSize: 10, fontWeight: 700 }}>{String(n).padStart(2, "0")}</span>
+                                          <span style={{ position: "absolute", zIndex: 1, left: 4, top: 3, minWidth: 24, height: 16, padding: "0 3px", boxSizing: "border-box", display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: 3, background: "rgba(0,0,0,0.72)", color: "#fff", fontFamily: fMono, fontSize: 9, fontWeight: 700 }}>{String(n).padStart(3, "0")}</span>
                                           {!saved && <span aria-hidden="true" style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: T.faint, fontFamily: fUI, fontSize: 10, fontWeight: 600 }}>None</span>}
                                         </div>
                                         {!saved ? (
@@ -4479,6 +4540,7 @@ export default function App() {
                         </div>
                       </div>
                     )}
+                    </div>
                   </div>
                 </>
               );
@@ -5342,6 +5404,7 @@ export default function App() {
               saving: "Updating",
               restoring: "Restoring",
             }[faceSelectFlow.stage];
+            const eligibleFaceCandidates = FACE_ENROLLMENT_CANDIDATES.filter((candidate) => candidate.status === "eligible");
             const ptzIsWide = ptz.zoom <= 1.001;
             const ptzMoveButtonStyle = { ...arrowBtn, opacity: ptzIsWide ? 0.38 : 1, cursor: ptzIsWide ? "not-allowed" : "pointer" };
             const ptzHomeDisabled = ptzIsWide && Math.abs(ptz.pan) < 0.01 && Math.abs(ptz.tilt) < 0.01;
@@ -5362,7 +5425,7 @@ export default function App() {
               </div>
             );
             return (
-              <div id="aver-tracking-wrapper" style={{ width: "min(calc(75vw - 40px), 100%)", marginLeft: "max(0px, calc(16.6667vw - 225.33px))", height: "100%", minHeight: 0, overflow: "hidden", paddingRight: 8, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 10 }}>
+              <div id="aver-tracking-wrapper" style={{ width: "min(1200px, 100%)", marginInline: "auto", height: "100%", minHeight: 0, overflow: "hidden", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 10 }}>
                 {/* 上方:預覽 + 方向盤/Zoom + Save to Preset */}
                 <div id="aver-trk-preview-row" style={{ flex: "1 1 0", minHeight: 0, display: "flex", gap: 10, alignItems: "stretch" }}>
                   <div id="aver-trk-preview-panel" style={{ flex: "1 1 0", minWidth: 0, position: "relative", borderRadius: 10, overflow: "hidden", border: `1px solid ${T.line}`, background: "#000", minHeight: 0 }}>
@@ -5373,19 +5436,19 @@ export default function App() {
                           const isSelected = faceSelectFlow.candidateId === candidate.id;
                           const hideDuringFocus = faceSelectIsFocused && !isSelected;
                           if (hideDuringFocus) return null;
-                          const isAdded = trk.faceBatchResult?.addedCandidateIds?.includes(candidate.id);
                           const isValidSelectFace = candidate.status === "eligible";
-                          const isPreviouslyEnrolled = trk.enrolledFaces.some((face) => face.candidateId === candidate.id);
                           const libraryFull = trk.enrolledFaces.length >= 20;
                           const blockedByLibraryFull = libraryFull && isValidSelectFace;
                           const isSelectable = isValidSelectFace && faceSelectFlow.stage === "ready" && !libraryFull;
-                          const isHovered = isSelectable && hoveredFaceCandidateId === candidate.id;
+                          const opensEnrollmentGuide = !isValidSelectFace;
+                          const isInteractiveFaceFrame = isSelectable || opensEnrollmentGuide;
+                          const isHovered = isInteractiveFaceFrame && hoveredFaceCandidateId === candidate.id;
                           const shouldPulse = isSelectable && faceSelectCoachmarkVisible;
-                          const color = blockedByLibraryFull ? T.faint : isValidSelectFace ? isHovered ? "#49b7ff" : T.blue : "#e24b4b";
+                          const color = blockedByLibraryFull ? T.faint : isValidSelectFace ? isHovered ? "#49b7ff" : T.blue : isHovered ? "#ff6666" : "#e24b4b";
                           const label = blockedByLibraryFull
                             ? "Library full"
                             : isValidSelectFace
-                              ? isAdded || isPreviouslyEnrolled ? "Enrolled" : "Eligible"
+                              ? "Selectable face"
                               : candidate.label;
                           const actionLabel = "Add Face";
                           const { x, y, size } = candidate.crop;
@@ -5393,16 +5456,35 @@ export default function App() {
                             <g
                               key={candidate.id}
                               id={`aver-face-box-${candidate.id}`}
-                              aria-label={isValidSelectFace ? `${label}: ${candidate.id}` : `${candidate.label}; face cannot be enrolled`}
-                              onMouseEnter={() => isSelectable && setHoveredFaceCandidateId(candidate.id)}
+                              role={isInteractiveFaceFrame ? "button" : undefined}
+                              tabIndex={isInteractiveFaceFrame ? 0 : undefined}
+                              aria-label={isValidSelectFace ? `${label}: ${candidate.id}` : "Face cannot be added. Open face enrollment guide."}
+                              onClick={() => {
+                                if (isSelectable) startFaceAdd(candidate.id);
+                                else if (opensEnrollmentGuide) setFaceEnrollmentTourOpen(true);
+                              }}
+                              onKeyDown={(event) => {
+                                if (isInteractiveFaceFrame && (event.key === "Enter" || event.key === " ")) {
+                                  event.preventDefault();
+                                  if (isSelectable) startFaceAdd(candidate.id);
+                                  else setFaceEnrollmentTourOpen(true);
+                                }
+                              }}
+                              onMouseEnter={() => isInteractiveFaceFrame && setHoveredFaceCandidateId(candidate.id)}
                               onMouseLeave={() => setHoveredFaceCandidateId((current) => current === candidate.id ? null : current)}
-                              style={{ cursor: "default", pointerEvents: "all", opacity: faceSelectFlow.stage === "restoring" && isSelected ? 0.7 : 1, filter: isHovered ? "drop-shadow(0 0 8px rgba(30,155,240,0.9))" : "none", transition: "filter 160ms ease" }}
+                              onFocus={() => isInteractiveFaceFrame && setHoveredFaceCandidateId(candidate.id)}
+                              onBlur={() => setHoveredFaceCandidateId((current) => current === candidate.id ? null : current)}
+                              style={{ cursor: isInteractiveFaceFrame ? "pointer" : "default", pointerEvents: "all", opacity: faceSelectFlow.stage === "restoring" && isSelected ? 0.7 : 1, filter: isHovered ? `drop-shadow(0 0 8px ${isValidSelectFace ? "rgba(30,155,240,0.9)" : "rgba(255,82,82,0.9)"})` : "none", transition: "filter 160ms ease" }}
                             >
                               {shouldPulse && <rect className="aver-face-select-pulse" x={x - 7} y={y - 7} width={size + 14} height={size + 14} fill="none" stroke={T.blue} vectorEffect="non-scaling-stroke" />}
-                              <rect x={x} y={y} width={size} height={size} fill={isHovered ? "rgba(23,145,236,0.13)" : "rgba(23,145,236,0.001)"} stroke={color} strokeWidth={isHovered ? "8" : "5"} vectorEffect="non-scaling-stroke" />
-                              <rect x={x} y={Math.max(0, y - 30)} width={size} height="30" fill={color} opacity="0.94" />
-                              <text x={x + 9} y={Math.max(21, y - 9)} fill="#fff" fontSize="18" fontWeight="700" fontFamily={fUI}>{label}</text>
-                              {isSelectable && (
+                              <rect x={x} y={y} width={size} height={size} fill={isHovered ? isValidSelectFace ? "rgba(23,145,236,0.13)" : "rgba(226,75,75,0.12)" : "rgba(23,145,236,0.001)"} stroke={color} strokeWidth={isHovered ? "8" : "5"} vectorEffect="non-scaling-stroke" />
+                              {blockedByLibraryFull && (
+                                <>
+                                  <rect x={x} y={Math.max(0, y - 30)} width={size} height="30" fill={color} opacity="0.94" />
+                                  <text x={x + 9} y={Math.max(21, y - 9)} fill="#fff" fontSize="18" fontWeight="700" fontFamily={fUI}>{label}</text>
+                                </>
+                              )}
+                              {false && isSelectable && (
                                 <g
                                   id={`aver-face-add-face-${candidate.id}`}
                                   role="button"
@@ -5454,7 +5536,7 @@ export default function App() {
                     {trk.tab === "face" && trk.faceCaptureState === "loading" && (
                       <div id="aver-face-enrollment-loading" role="status" aria-live="polite" style={{ position: "absolute", inset: 0, background: "rgba(5,7,9,0.68)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, color: "#fff", zIndex: 2 }}>
                         <span className="aver-spinner" aria-hidden="true" style={{ width: 34, height: 34, boxSizing: "border-box", borderRadius: "50%", border: "3px solid rgba(255,255,255,0.26)", borderTopColor: T.blue }} />
-                        <span style={{ fontSize: 14, fontWeight: 600 }}>Detecting and enrolling faces...</span>
+                        <span style={{ fontSize: 14, fontWeight: 600 }}>Detecting faces...</span>
                       </div>
                     )}
                     {trk.tab === "face" && faceSelectStageLabel && (
@@ -5478,11 +5560,45 @@ export default function App() {
                       </div>
                     </div>
                     <button id="aver-save-preset-button" style={{ padding: "10px 0", fontSize: 13.5, fontWeight: 600, cursor: "pointer", borderRadius: 6, border: `1px solid ${T.line2}`, background: "#101216", color: T.text, fontFamily: fUI }}>Save to Preset 1</button>
+                    {trk.tab === "face" && (
+                      <div id="aver-ptz-face-enrollment-section" style={{ display: "flex", flexDirection: "column", gap: 8, paddingTop: 10, borderTop: `1px solid ${T.line}` }}>
+                        <div id="aver-ptz-face-enrollment-header" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <div id="aver-ptz-face-enrollment-title" style={{ fontSize: 12, fontWeight: 600, color: T.dim }}>Face Enrollment</div>
+                          <button
+                            id="aver-face-enrollment-information-button"
+                            type="button"
+                            aria-label="Open face enrollment guide"
+                            title="Face enrollment guide"
+                            onClick={() => setFaceEnrollmentTourOpen(true)}
+                            style={{ width: 18, height: 18, padding: 0, borderRadius: "50%", border: `1px solid ${T.faint}`, background: "transparent", color: T.dim, fontFamily: fUI, fontSize: 11, fontWeight: 700, lineHeight: 1, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+                          >i</button>
+                        </div>
+                        <button
+                          id={trk.faceCaptureState === "complete" ? "aver-face-resume-live-button" : "aver-face-detect-button"}
+                          onClick={trk.faceCaptureState === "complete" ? resumeFaceEnrollmentLiveView : startFaceBatchEnrollment}
+                          disabled={trk.faceCaptureState === "loading" || faceSelectFlow.stage !== "ready"}
+                          style={{ ...primaryBtn, width: "100%", padding: "8px 8px", opacity: trk.faceCaptureState === "loading" || faceSelectFlow.stage !== "ready" ? 0.48 : 1, cursor: trk.faceCaptureState === "loading" || faceSelectFlow.stage !== "ready" ? "not-allowed" : "pointer" }}
+                        >
+                          {trk.faceCaptureState === "complete" ? "Resume Live" : "Detect Faces"}
+                        </button>
+                        {trk.faceCaptureState === "complete" && (
+                          <button
+                            id="aver-face-add-all-eligible-button"
+                            type="button"
+                            onClick={addAllEligibleFaces}
+                            disabled={faceSelectFlow.stage !== "ready" || trk.enrolledFaces.length >= 20 || eligibleFaceCandidates.length === 0}
+                            style={{ ...secondaryBtn, width: "100%", padding: "8px 8px", opacity: faceSelectFlow.stage !== "ready" || trk.enrolledFaces.length >= 20 || eligibleFaceCandidates.length === 0 ? 0.48 : 1, cursor: faceSelectFlow.stage !== "ready" || trk.enrolledFaces.length >= 20 || eligibleFaceCandidates.length === 0 ? "not-allowed" : "pointer" }}
+                          >
+                            Add All Faces
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {/* Tab 列 + 內容(版面同 Camera Settings:邊框面板 + 固定寬藍底分頁 + 分隔線) */}
-                <div id="aver-trk-control-panel" style={{ flex: "0 0 350px", height: 350, minHeight: 0, background: T.panel, border: `1px solid ${T.line}`, borderRadius: 10, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                <div id="aver-trk-control-panel" style={{ width: "min(1200px, 100%)", flex: "0 0 350px", height: 350, minHeight: 0, background: T.panel, border: `1px solid ${T.line}`, borderRadius: 10, display: "flex", flexDirection: "column", overflow: "hidden" }}>
                   {/* 分頁列 */}
                   <div id="aver-trk-tab-bar" style={{ display: "flex", borderBottom: `1px solid ${T.line}` }}>
                     {TRK_TABS.map(([id, lb]) => (
@@ -5637,11 +5753,11 @@ export default function App() {
                 ) : (
                   <>
                   <div id="aver-face-enrollment" style={{ height: "100%", minHeight: 0, display: "flex" }}>
-                    <div id="aver-face-enrollment-action-panel" style={{ flex: "0 0 210px", minWidth: 0, boxSizing: "border-box", padding: "4px 12px 4px 4px", borderRight: `1px solid ${T.line}`, display: "flex", flexDirection: "column", gap: 9 }}>
+                    <div id="aver-face-enrollment-action-panel" aria-hidden="true" style={{ display: "none" }}>
                       <div id="aver-face-enrollment-action-header" style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <span style={{ fontSize: 13.5, fontWeight: 600, color: T.text }}>Face Enrollment</span>
                         <button
-                          id="aver-face-enrollment-information-button"
+                          id="aver-face-enrollment-information-button-legacy"
                           type="button"
                           aria-label="Open face enrollment guide"
                           title="Face enrollment guide"
@@ -5649,30 +5765,28 @@ export default function App() {
                           style={{ width: 18, height: 18, padding: 0, borderRadius: "50%", border: `1px solid ${T.faint}`, background: "transparent", color: T.dim, fontFamily: fUI, fontSize: 11, fontWeight: 700, lineHeight: 1, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
                         >i</button>
                       </div>
-                      <button
-                        id={trk.faceCaptureState === "complete" ? "aver-face-resume-live-button" : "aver-face-enroll-all-button"}
-                        onClick={trk.faceCaptureState === "complete" ? resumeFaceEnrollmentLiveView : startFaceBatchEnrollment}
-                        disabled={trk.faceCaptureState === "loading" || faceSelectFlow.stage !== "ready" || (trk.faceCaptureState !== "complete" && trk.enrolledFaces.length >= 20)}
-                        style={{ ...primaryBtn, width: "100%", padding: "8px 8px", opacity: trk.faceCaptureState === "loading" || faceSelectFlow.stage !== "ready" || (trk.faceCaptureState !== "complete" && trk.enrolledFaces.length >= 20) ? 0.48 : 1, cursor: trk.faceCaptureState === "loading" || faceSelectFlow.stage !== "ready" || (trk.faceCaptureState !== "complete" && trk.enrolledFaces.length >= 20) ? "not-allowed" : "pointer" }}
-                      >
-                        {trk.faceCaptureState === "complete" ? "Resume Live" : "Enroll All Faces"}
-                      </button>
                       <div id="aver-face-add-face-hint" style={{ display: "flex", alignItems: "flex-start", gap: 7, padding: "8px 9px", borderRadius: 5, border: `1px solid ${T.line}`, background: "#111419", color: T.dim, fontSize: 11.5, lineHeight: 1.4 }}>
                         <span aria-hidden="true" style={{ color: T.blue, fontWeight: 700 }}>◎</span>
-                        <span>{trk.enrolledFaces.length === 0 ? "Click Enroll All Faces to capture eligible faces." : "Use Add Face on a blue frame for a closer capture."}</span>
+                        <span>
+                          {trk.faceCaptureState === "complete"
+                            ? "Use Add Face on a blue frame for a closer capture."
+                            : trk.faceCaptureState === "loading"
+                              ? "Capturing a frozen frame and detecting eligible faces…"
+                              : "Click Detect Faces to find eligible faces."}
+                        </span>
                       </div>
                     </div>
-                    <div id="aver-enrolled-face-panel" style={{ flex: "1 1 0", minWidth: 0, minHeight: 0, paddingLeft: 12, display: "flex", flexDirection: "column", gap: 8 }}>
-                      <div id="aver-face-enrollment-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                        <div style={{ display: "flex", alignItems: "baseline", gap: 10, minWidth: 0 }}>
+                    <div id="aver-enrolled-face-panel" style={{ flex: "1 1 0", minWidth: 0, minHeight: 0, padding: 4, display: "flex", flexDirection: "column", gap: 8 }}>
+                      <div id="aver-face-enrollment-header" style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
                           <span id="aver-enrolled-face-count" style={{ fontSize: 16, fontWeight: 500, color: T.text, whiteSpace: "nowrap" }}>Enrolled Face ({trk.enrolledFaces.length}/20)</span>
                           {trk.enrolledFaces.length > 1 && <span id="aver-enrolled-face-management-hint" style={{ fontSize: 11.5, color: T.faint }}>Drag cards to reorder</span>}
+                          {trk.enrolledFaces.length >= 20 && (
+                            <span id="aver-enrolled-face-library-full-status" role="status" style={{ padding: "3px 7px", borderRadius: 4, border: "1px solid rgba(245,166,35,0.42)", background: "rgba(245,166,35,0.10)", color: "#f5b74f", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
+                              Face library is full
+                            </span>
+                          )}
                         </div>
-                        {trk.enrolledFaces.length >= 20 && (
-                          <span id="aver-enrolled-face-library-full-status" role="status" style={{ padding: "4px 8px", borderRadius: 4, border: "1px solid rgba(245,166,35,0.42)", background: "rgba(245,166,35,0.10)", color: "#f5b74f", fontSize: 11.5, fontWeight: 600, whiteSpace: "nowrap" }}>
-                            Face library is full
-                          </span>
-                        )}
                       </div>
                       {trk.enrolledFaces.length === 0 ? (
                         <div id="aver-face-enrollment-empty-state" style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 9 }}>
@@ -5739,23 +5853,13 @@ export default function App() {
                             >
                               <div id={`aver-enrolled-face-photo-${order}`} aria-label={`Enrolled face ${index + 1}`} style={{ width: 92, height: 92, boxSizing: "border-box", position: "relative", overflow: "hidden", border: `1px solid ${isEditing ? T.blue : T.line2}`, backgroundColor: "rgba(23,145,236,0.12)" }}>
                                 <FaceEnrollmentCrop candidateId={face.candidateId} label={`Face ${index + 1} photo${face.liveCapturedAt ? ", live capture" : ""}`} recaptured={Boolean(face.liveCapturedAt)} />
-                                <select
+                                <span
                                   id={`aver-enrolled-face-priority-${order}`}
-                                  title="Change priority"
-                                  aria-label={`Change priority, currently P${order}`}
-                                  value={index + 1}
-                                  draggable={false}
-                                  onDragStart={(event) => event.preventDefault()}
-                                  onPointerDown={(event) => event.stopPropagation()}
-                                  onClick={(event) => event.stopPropagation()}
-                                  onChange={(event) => setEnrolledFacePriority(face.id, Number(event.target.value))}
-                                  style={{ position: "absolute", top: 3, left: 3, width: 42, height: 18, padding: "0 2px 0 4px", outline: "none", borderRadius: 3, border: "1px solid rgba(255,255,255,0.22)", background: "rgba(8,10,13,0.78)", color: "#fff", fontFamily: fUI, fontSize: 9.5, fontWeight: 700, lineHeight: 1, cursor: "pointer", textShadow: "0 1px 3px #000" }}
+                                  aria-label={`Priority P${order}`}
+                                  style={{ position: "absolute", top: 3, left: 3, minWidth: 31, height: 18, padding: "0 4px", boxSizing: "border-box", borderRadius: 3, border: "1px solid rgba(255,255,255,0.22)", background: "rgba(8,10,13,0.78)", color: "#fff", fontFamily: fUI, fontSize: 9.5, fontWeight: 700, lineHeight: "16px", cursor: "inherit", textAlign: "center", textShadow: "0 1px 3px #000", pointerEvents: "none" }}
                                 >
-                                  {trk.enrolledFaces.map((_, priorityIndex) => {
-                                    const priority = priorityIndex + 1;
-                                    return <option key={priority} value={priority}>P{String(priority).padStart(2, "0")}</option>;
-                                  })}
-                                </select>
+                                  P{order}
+                                </span>
                                 <button
                                   id={`aver-enrolled-face-delete-${order}`}
                                   type="button"
@@ -5801,42 +5905,52 @@ export default function App() {
                   </div>
                   {faceEnrollmentTourOpen && (
                     <div id="aver-face-enrollment-tour-modal" role="dialog" aria-modal="true" aria-labelledby="aver-face-enrollment-tour-title" style={{ position: "fixed", inset: 0, zIndex: 75, padding: 16, background: "rgba(0,0,0,0.72)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <div id="aver-face-enrollment-tour-dialog" style={{ width: "min(680px, calc(100vw - 32px))", maxHeight: "calc(100vh - 32px)", overflow: "hidden", borderRadius: 10, border: `1px solid ${T.line2}`, background: "#101216", boxShadow: "0 22px 64px rgba(0,0,0,0.58)", display: "flex", flexDirection: "column" }}>
+                      <div id="aver-face-enrollment-tour-dialog" style={{ width: "min(780px, calc(100vw - 32px))", maxHeight: "calc(100vh - 32px)", overflow: "hidden", borderRadius: 10, border: `1px solid ${T.line2}`, background: "#101216", boxShadow: "0 22px 64px rgba(0,0,0,0.58)", display: "flex", flexDirection: "column" }}>
                         <div id="aver-face-enrollment-tour-header" style={{ minHeight: 48, padding: "0 14px 0 16px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${T.line2}` }}>
                           <div>
                             <div id="aver-face-enrollment-tour-title" style={{ color: T.text, fontSize: 16, fontWeight: 600 }}>Face Enrollment Guide</div>
-                            <div style={{ marginTop: 2, color: T.faint, fontSize: 11.5 }}>Understand face eligibility, Add Face, and priority.</div>
+                            <div style={{ marginTop: 2, color: T.faint, fontSize: 11.5 }}>Use a clear, front-facing image with enough face detail.</div>
                           </div>
                           <button id="aver-face-enrollment-tour-close-button" type="button" aria-label="Close face enrollment guide" onClick={() => setFaceEnrollmentTourOpen(false)} style={{ width: 30, height: 30, padding: 0, borderRadius: 5, border: "none", background: "transparent", color: T.dim, fontFamily: fUI, fontSize: 20, cursor: "pointer" }}>×</button>
                         </div>
-                        <div id="aver-face-enrollment-tour-content" style={{ minHeight: 0, overflow: "hidden", padding: 14, display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
-                          <div id="aver-face-enrollment-tour-blue-frame" style={{ minWidth: 0, padding: 10, borderRadius: 8, border: "1px solid rgba(30,155,240,0.32)", background: "rgba(30,155,240,0.06)" }}>
+                        <div id="aver-face-enrollment-tour-content" style={{ minHeight: 0, overflow: "hidden", padding: 14, display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10 }}>
+                          <div id="aver-face-enrollment-tour-face-too-small" style={{ minWidth: 0, padding: 10, borderRadius: 8, border: "1px solid rgba(239,83,80,0.30)", background: "rgba(239,83,80,0.05)" }}>
                             <div style={{ height: 110, padding: 8, boxSizing: "border-box", borderRadius: 6, background: "#090b0f", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                              <div style={{ width: 90, height: 90, position: "relative", overflow: "hidden" }}>
-                                <FaceEnrollmentCrop candidateId="front-center" label="Eligible front-facing person" />
-                                <span aria-hidden="true" style={{ position: "absolute", inset: 5, border: `3px solid ${T.blue}`, boxSizing: "border-box" }} />
-                                <span aria-hidden="true" style={{ position: "absolute", left: 5, right: 5, bottom: 5, padding: "4px 2px", background: "rgba(5,10,15,0.88)", borderTop: `1px solid ${T.blue}`, color: "#fff", fontSize: 10, fontWeight: 700, textAlign: "center" }}>◎ Add Face</span>
+                              <div style={{ width: 150, height: 90, position: "relative", overflow: "hidden" }}>
+                                <svg role="img" aria-label="Face is too small in the frame" viewBox="430 -5 480 288" preserveAspectRatio="xMidYMid slice" style={{ width: "100%", height: "100%", display: "block" }}>
+                                  <image href={FACE_ENROLLMENT_DEMO_IMAGE} x="0" y="0" width={FACE_ENROLLMENT_DEMO_SIZE.width} height={FACE_ENROLLMENT_DEMO_SIZE.height} preserveAspectRatio="none" />
+                                  <rect x="592" y="105" width="132" height="145" fill="none" stroke="#ef5350" strokeWidth="3" vectorEffect="non-scaling-stroke" />
+                                </svg>
                               </div>
                             </div>
-                            <div style={{ marginTop: 8, color: T.blue, fontSize: 12.5, fontWeight: 700 }}>Blue frame · Eligible face</div>
-                            <div style={{ marginTop: 4, color: T.dim, fontSize: 11.5, lineHeight: 1.4 }}>The face is front-facing, clear, and large enough. Blue-framed faces are added when Enroll All Faces completes.</div>
+                            <div style={{ marginTop: 8, color: "#ef6c68", fontSize: 12.5, fontWeight: 700 }}>Face too small</div>
+                            <div style={{ marginTop: 4, color: T.dim, fontSize: 11.5, lineHeight: 1.4 }}>Move closer or zoom in. The face must be large enough to capture clear facial detail.</div>
                           </div>
-                          <div id="aver-face-enrollment-tour-red-frame" style={{ minWidth: 0, padding: 10, borderRadius: 8, border: "1px solid rgba(239,83,80,0.30)", background: "rgba(239,83,80,0.05)" }}>
+                          <div id="aver-face-enrollment-tour-face-blurred" style={{ minWidth: 0, padding: 10, borderRadius: 8, border: "1px solid rgba(239,83,80,0.30)", background: "rgba(239,83,80,0.05)" }}>
                             <div style={{ height: 110, padding: 8, boxSizing: "border-box", borderRadius: 6, background: "#090b0f", display: "flex", alignItems: "center", justifyContent: "center" }}>
                               <div style={{ width: 90, height: 90, position: "relative", overflow: "hidden" }}>
-                                <FaceEnrollmentCrop candidateId="side-profile" label="Ineligible side-facing person" />
+                                <div style={{ position: "absolute", inset: 0, filter: "blur(1.4px)" }}><FaceEnrollmentCrop candidateId="blurred-distance" label="Blurred moving face" /></div>
                                 <span aria-hidden="true" style={{ position: "absolute", inset: 5, border: "3px solid #ef5350", boxSizing: "border-box" }} />
                               </div>
                             </div>
-                            <div style={{ marginTop: 8, color: "#ef6c68", fontSize: 12.5, fontWeight: 700 }}>Red frame · Cannot enroll</div>
-                            <div style={{ marginTop: 4, color: T.dim, fontSize: 11.5, lineHeight: 1.4 }}>The face may be angled, blurred, obstructed, or too small. Red-framed faces are excluded from enrollment.</div>
+                            <div style={{ marginTop: 8, color: "#ef6c68", fontSize: 12.5, fontWeight: 700 }}>Face is blurred</div>
+                            <div style={{ marginTop: 4, color: T.dim, fontSize: 11.5, lineHeight: 1.4 }}>Keep the person and camera steady. Facial features must be sharp and clearly visible.</div>
                           </div>
-                          <div id="aver-face-enrollment-tour-recapture" style={{ gridColumn: "1 / -1", minWidth: 0, padding: 10, borderRadius: 8, border: "1px solid rgba(30,155,240,0.28)", background: "rgba(30,155,240,0.045)", display: "grid", gridTemplateColumns: "270px minmax(0, 1fr)", alignItems: "center", columnGap: 14 }}>
+                          <div id="aver-face-enrollment-tour-front-facing" style={{ minWidth: 0, padding: 10, borderRadius: 8, border: "1px solid rgba(30,155,240,0.32)", background: "rgba(30,155,240,0.06)" }}>
+                            <div style={{ height: 110, padding: 8, boxSizing: "border-box", borderRadius: 6, background: "#090b0f", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              <div style={{ width: 90, height: 90, position: "relative", overflow: "hidden" }}>
+                                <FaceEnrollmentCrop candidateId="front-center" label="Front-facing person with both cheeks evenly visible" />
+                                <span aria-hidden="true" style={{ position: "absolute", inset: 5, border: `3px solid ${T.blue}`, boxSizing: "border-box" }} />
+                              </div>
+                            </div>
+                            <div style={{ marginTop: 8, color: T.blue, fontSize: 12.5, fontWeight: 700 }}>Face the camera</div>
+                            <div style={{ marginTop: 4, color: T.dim, fontSize: 11.5, lineHeight: 1.4 }}>Look straight at the camera and keep the left and right cheeks evenly visible.</div>
+                          </div>
+                          <div id="aver-face-enrollment-tour-recapture" aria-hidden="true" style={{ display: "none" }}>
                             <div id="aver-face-enrollment-tour-recapture-example" aria-label="Select Add Face on the batch face to create another face record" style={{ width: "100%", minWidth: 0, height: 88, padding: 7, boxSizing: "border-box", borderRadius: 6, border: `1px solid ${T.line}`, background: "#090b0f", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
                               <div style={{ width: 74, height: 74, position: "relative", overflow: "hidden", border: `2px solid ${T.blue}`, boxSizing: "border-box" }}>
                                 <FaceEnrollmentCrop candidateId="front-center" label="Original batch capture" />
                                 <span style={{ position: "absolute", left: 3, top: 3, padding: "2px 4px", borderRadius: 3, background: "rgba(8,10,13,0.78)", color: T.dim, fontSize: 8.5, fontWeight: 700 }}>BATCH</span>
-                                <span aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 17, background: "rgba(5,10,15,0.90)", borderTop: `1px solid ${T.blue}`, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8.5, fontWeight: 700 }}>◎ Add Face</span>
                               </div>
                               <span aria-hidden="true" style={{ color: T.blue, fontSize: 20, fontWeight: 700 }}>→</span>
                               <div style={{ width: 74, height: 74, position: "relative", overflow: "hidden", border: `2px solid ${T.blue}`, boxSizing: "border-box" }}>
@@ -5861,7 +5975,7 @@ export default function App() {
                                   <div key={card.priority} style={{ width: 76, minWidth: 0 }}>
                                     <div style={{ width: 76, height: 70, position: "relative", overflow: "hidden", border: `1px solid ${T.line2}`, boxSizing: "border-box", background: "rgba(23,145,236,0.12)" }}>
                                       <FaceEnrollmentCrop candidateId={card.candidateId} label={`${card.name}, ${card.priority}`} />
-                                      <span style={{ position: "absolute", top: 3, left: 3, padding: "2px 4px", borderRadius: 3, border: "1px solid rgba(255,255,255,0.22)", background: "rgba(8,10,13,0.78)", color: "#fff", fontSize: 9, fontWeight: 700, lineHeight: 1 }}>{card.priority} ▾</span>
+                                      <span style={{ position: "absolute", top: 3, left: 3, padding: "2px 4px", borderRadius: 3, border: "1px solid rgba(255,255,255,0.22)", background: "rgba(8,10,13,0.78)", color: "#fff", fontSize: 9, fontWeight: 700, lineHeight: 1 }}>{card.priority}</span>
                                       <span aria-hidden="true" style={{ position: "absolute", top: 3, right: 3, width: 14, height: 14, borderRadius: 2, border: "1px solid rgba(255,255,255,0.25)", background: "rgba(8,10,13,0.82)", color: "#ff6b6b", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, lineHeight: 1 }}>×</span>
                                     </div>
                                     <div style={{ paddingTop: 3, color: T.dim, fontSize: 10.5, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{card.name}</div>
@@ -5878,7 +5992,7 @@ export default function App() {
                           </div>
                         </div>
                         <div id="aver-face-enrollment-tour-footer" style={{ padding: "10px 14px", display: "flex", justifyContent: "flex-end", borderTop: `1px solid ${T.line2}`, background: "rgba(255,255,255,0.018)" }}>
-                          <button id="aver-face-enrollment-tour-confirm-button" type="button" onClick={() => setFaceEnrollmentTourOpen(false)} style={{ ...primaryBtn, minWidth: 92 }}>Got it</button>
+                          <button id="aver-face-enrollment-tour-confirm-button" type="button" onClick={() => setFaceEnrollmentTourOpen(false)} style={{ ...primaryBtn, minWidth: 92 }}>OK</button>
                         </div>
                       </div>
                     </div>
