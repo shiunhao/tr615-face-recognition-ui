@@ -1256,6 +1256,8 @@ export default function App() {
   const [draggedFaceId, setDraggedFaceId] = useState(null);
   const [faceDragOverlay, setFaceDragOverlay] = useState(null);
   const [faceDeleteTarget, setFaceDeleteTarget] = useState(null);
+  const [faceEnrollmentNoDataDialogOpen, setFaceEnrollmentNoDataDialogOpen] = useState(false);
+  const [faceLibraryFullDialogOpen, setFaceLibraryFullDialogOpen] = useState(false);
   const [editingFaceId, setEditingFaceId] = useState(null);
   const [editingFaceName, setEditingFaceName] = useState("");
   const [faceEnrollmentTourOpen, setFaceEnrollmentTourOpen] = useState(false);
@@ -1442,7 +1444,11 @@ export default function App() {
     }, 1000);
   };
   const addAllEligibleFaces = () => {
-    if (trk.faceCaptureState !== "complete" || faceSelectFlow.stage !== "ready" || trk.enrolledFaces.length >= 20) return;
+    if (trk.enrolledFaces.length >= 20) {
+      setFaceLibraryFullDialogOpen(true);
+      return;
+    }
+    if (trk.faceCaptureState !== "complete" || faceSelectFlow.stage !== "ready") return;
     const eligibleFaces = FACE_ENROLLMENT_CANDIDATES.filter((candidate) => candidate.status === "eligible");
     const availableSlots = Math.max(0, 20 - trk.enrolledFaces.length);
     const addedCount = Math.min(eligibleFaces.length, availableSlots);
@@ -1499,7 +1505,11 @@ export default function App() {
   }, [trk.faceCaptureState, faceSelectFlow.stage, faceSelectCoachmarkDismissed, trk.enrolledFaces.length]);
   const startFaceAdd = (candidateId) => {
     const candidate = FACE_ENROLLMENT_CANDIDATES.find((item) => item.id === candidateId);
-    if (!candidate || candidate.status !== "eligible" || trk.faceCaptureState !== "complete" || faceSelectFlow.stage !== "ready" || trk.enrolledFaces.length >= 20) return;
+    if (trk.enrolledFaces.length >= 20) {
+      setFaceLibraryFullDialogOpen(true);
+      return;
+    }
+    if (!candidate || candidate.status !== "eligible" || trk.faceCaptureState !== "complete" || faceSelectFlow.stage !== "ready") return;
     setFaceSelectCoachmarkDismissed(true);
     setFaceSelectCoachmarkVisible(false);
     setHoveredFaceCandidateId(null);
@@ -1729,7 +1739,6 @@ export default function App() {
   // Tracking Control (側邊欄)
   const [trackOn, setTrackOn] = useState(true);
   const [trackMode, setTrackMode] = useState("hybrid");
-  const [trkFace, setTrkFace] = useState(false);
 
   // Multi-Matrix 樣式狀態："wheel" (Radar Wheel), "eq" (色彩等化器)
 
@@ -4008,11 +4017,24 @@ export default function App() {
                 ))}
               </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
-              <span style={{ fontSize: 13, color: T.dim, width: 60, flexShrink: 0 }}>TrkFace</span>
+            <div id="aver-tracking-face-enrollment-toggle" style={{ display: "flex", alignItems: "flex-start", gap: 0 }}>
+              <span style={{ fontSize: 13, lineHeight: 1.25, color: T.dim, width: 78, flexShrink: 0 }}>Face<br />Enrollment</span>
               <div style={{ display: "flex", gap: 24 }}>
-                <span style={{ width: 44 }}><CamRadio label="On" checked={trkFace} onChange={() => setTrkFace(true)} /></span>
-                <CamRadio label="Off" checked={!trkFace} onChange={() => setTrkFace(false)} />
+                <span style={{ width: 44 }}>
+                  <CamRadio
+                    id="aver-tracking-face-enrollment-on"
+                    label="On"
+                    checked={trk.faceEnrollment}
+                    onChange={() => {
+                      if (trk.enrolledFaces.length === 0) {
+                        setFaceEnrollmentNoDataDialogOpen(true);
+                        return;
+                      }
+                      updTrk("faceEnrollment", true);
+                    }}
+                  />
+                </span>
+                <CamRadio id="aver-tracking-face-enrollment-off" label="Off" checked={!trk.faceEnrollment} onChange={() => updTrk("faceEnrollment", false)} />
               </div>
             </div>
             <button style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "9px 0", fontSize: 13, cursor: "pointer", borderRadius: 6, border: `1px solid ${T.line2}`, background: T.panel2, color: T.text, fontFamily: fUI, marginTop: 2 }}>
@@ -5440,16 +5462,13 @@ export default function App() {
                           const libraryFull = trk.enrolledFaces.length >= 20;
                           const blockedByLibraryFull = libraryFull && isValidSelectFace;
                           const isSelectable = isValidSelectFace && faceSelectFlow.stage === "ready" && !libraryFull;
+                          const opensLibraryFullDialog = blockedByLibraryFull && faceSelectFlow.stage === "ready";
                           const opensEnrollmentGuide = !isValidSelectFace;
-                          const isInteractiveFaceFrame = isSelectable || opensEnrollmentGuide;
+                          const isInteractiveFaceFrame = isSelectable || opensLibraryFullDialog || opensEnrollmentGuide;
                           const isHovered = isInteractiveFaceFrame && hoveredFaceCandidateId === candidate.id;
                           const shouldPulse = isSelectable && faceSelectCoachmarkVisible;
-                          const color = blockedByLibraryFull ? T.faint : isValidSelectFace ? isHovered ? "#49b7ff" : T.blue : isHovered ? "#ff6666" : "#e24b4b";
-                          const label = blockedByLibraryFull
-                            ? "Library full"
-                            : isValidSelectFace
-                              ? "Selectable face"
-                              : candidate.label;
+                          const color = isValidSelectFace ? isHovered ? "#49b7ff" : T.blue : isHovered ? "#ff6666" : "#e24b4b";
+                          const label = isValidSelectFace ? "Selectable face" : candidate.label;
                           const actionLabel = "Add Face";
                           const { x, y, size } = candidate.crop;
                           return (
@@ -5461,12 +5480,14 @@ export default function App() {
                               aria-label={isValidSelectFace ? `${label}: ${candidate.id}` : "Face cannot be added. Open face enrollment guide."}
                               onClick={() => {
                                 if (isSelectable) startFaceAdd(candidate.id);
+                                else if (opensLibraryFullDialog) setFaceLibraryFullDialogOpen(true);
                                 else if (opensEnrollmentGuide) setFaceEnrollmentTourOpen(true);
                               }}
                               onKeyDown={(event) => {
                                 if (isInteractiveFaceFrame && (event.key === "Enter" || event.key === " ")) {
                                   event.preventDefault();
                                   if (isSelectable) startFaceAdd(candidate.id);
+                                  else if (opensLibraryFullDialog) setFaceLibraryFullDialogOpen(true);
                                   else setFaceEnrollmentTourOpen(true);
                                 }
                               }}
@@ -5478,12 +5499,6 @@ export default function App() {
                             >
                               {shouldPulse && <rect className="aver-face-select-pulse" x={x - 7} y={y - 7} width={size + 14} height={size + 14} fill="none" stroke={T.blue} vectorEffect="non-scaling-stroke" />}
                               <rect x={x} y={y} width={size} height={size} fill={isHovered ? isValidSelectFace ? "rgba(23,145,236,0.13)" : "rgba(226,75,75,0.12)" : "rgba(23,145,236,0.001)"} stroke={color} strokeWidth={isHovered ? "8" : "5"} vectorEffect="non-scaling-stroke" />
-                              {blockedByLibraryFull && (
-                                <>
-                                  <rect x={x} y={Math.max(0, y - 30)} width={size} height="30" fill={color} opacity="0.94" />
-                                  <text x={x + 9} y={Math.max(21, y - 9)} fill="#fff" fontSize="18" fontWeight="700" fontFamily={fUI}>{label}</text>
-                                </>
-                              )}
                               {false && isSelectable && (
                                 <g
                                   id={`aver-face-add-face-${candidate.id}`}
@@ -5586,8 +5601,8 @@ export default function App() {
                             id="aver-face-add-all-eligible-button"
                             type="button"
                             onClick={addAllEligibleFaces}
-                            disabled={faceSelectFlow.stage !== "ready" || trk.enrolledFaces.length >= 20 || eligibleFaceCandidates.length === 0}
-                            style={{ ...secondaryBtn, width: "100%", padding: "8px 8px", opacity: faceSelectFlow.stage !== "ready" || trk.enrolledFaces.length >= 20 || eligibleFaceCandidates.length === 0 ? 0.48 : 1, cursor: faceSelectFlow.stage !== "ready" || trk.enrolledFaces.length >= 20 || eligibleFaceCandidates.length === 0 ? "not-allowed" : "pointer" }}
+                            disabled={faceSelectFlow.stage !== "ready" || eligibleFaceCandidates.length === 0}
+                            style={{ ...secondaryBtn, width: "100%", padding: "8px 8px", opacity: faceSelectFlow.stage !== "ready" || eligibleFaceCandidates.length === 0 ? 0.48 : 1, cursor: faceSelectFlow.stage !== "ready" || eligibleFaceCandidates.length === 0 ? "not-allowed" : "pointer" }}
                           >
                             Add All Faces
                           </button>
@@ -5820,7 +5835,7 @@ export default function App() {
                               height: 126,
                               position: "relative",
                               boxSizing: "border-box",
-                              padding: "6px 6px 4px",
+                              padding: "5px 7px 8px 5px",
                               borderRight: "1px dashed rgba(93,108,124,0.20)",
                               borderBottom: "1px dashed rgba(93,108,124,0.20)",
                             };
@@ -5849,9 +5864,9 @@ export default function App() {
                               onPointerMove={moveFacePointerDrag}
                               onPointerUp={finishFacePointerDrag}
                               onPointerCancel={finishFacePointerDrag}
-                              style={{ position: "relative", zIndex: 1, width: 92, minWidth: 92, display: "flex", flexDirection: "column", gap: 3, padding: 2, margin: -2, boxSizing: "content-box", borderRadius: 4, background: isEditing ? "rgba(30,155,240,0.10)" : isDragging ? "rgba(30,155,240,0.05)" : "transparent", outline: isEditing ? `1px solid ${T.blue}` : isDragging ? "1px dashed rgba(30,155,240,0.65)" : "1px solid transparent", opacity: isDragging ? 0.18 : 1, cursor: isDragging ? "grabbing" : isEditing ? "text" : "grab", touchAction: isEditing ? "auto" : "none", userSelect: "none", transition: "opacity 0.16s ease, background 0.16s ease, outline-color 0.16s ease" }}
+                              style={{ position: "relative", zIndex: 1, width: 92, minWidth: 92, height: 113, display: "flex", flexDirection: "column", padding: 0, margin: 0, overflow: "hidden", boxSizing: "border-box", border: `1px solid ${isEditing ? T.blue : T.line2}`, borderRadius: 6, background: isEditing ? "rgba(30,155,240,0.10)" : isDragging ? "rgba(30,155,240,0.05)" : T.panel, outline: isDragging ? "1px dashed rgba(30,155,240,0.65)" : "none", opacity: isDragging ? 0.18 : 1, cursor: isDragging ? "grabbing" : isEditing ? "text" : "grab", touchAction: isEditing ? "auto" : "none", userSelect: "none", transition: "opacity 0.16s ease, background 0.16s ease, border-color 0.16s ease" }}
                             >
-                              <div id={`aver-enrolled-face-photo-${order}`} aria-label={`Enrolled face ${index + 1}`} style={{ width: 92, height: 92, boxSizing: "border-box", position: "relative", overflow: "hidden", border: `1px solid ${isEditing ? T.blue : T.line2}`, backgroundColor: "rgba(23,145,236,0.12)" }}>
+                              <div id={`aver-enrolled-face-photo-${order}`} aria-label={`Enrolled face ${index + 1}`} style={{ width: "100%", height: 92, flex: "0 0 92px", boxSizing: "border-box", position: "relative", overflow: "hidden", borderBottom: `1px solid ${isEditing ? T.blue : T.line2}`, backgroundColor: "rgba(23,145,236,0.12)" }}>
                                 <FaceEnrollmentCrop candidateId={face.candidateId} label={`Face ${index + 1} photo${face.liveCapturedAt ? ", live capture" : ""}`} recaptured={Boolean(face.liveCapturedAt)} />
                                 <span
                                   id={`aver-enrolled-face-priority-${order}`}
@@ -5871,7 +5886,7 @@ export default function App() {
                                 >×</button>
                               </div>
                               {isEditing ? (
-                                <div id={`aver-enrolled-face-name-edit-state-${order}`}>
+                                <div id={`aver-enrolled-face-name-edit-state-${order}`} style={{ flex: 1, minHeight: 0 }}>
                                   <input
                                     id={`aver-enrolled-face-name-input-${order}`}
                                     aria-label={`Edit name for face ${index + 1}`}
@@ -5884,7 +5899,7 @@ export default function App() {
                                       if (event.key === "Enter") finishInlineFaceNameEdit(true);
                                       if (event.key === "Escape") finishInlineFaceNameEdit(false);
                                     }}
-                                    style={{ width: "100%", height: 23, boxSizing: "border-box", padding: "3px 5px", borderRadius: 3, border: `1px solid ${T.blue}`, outline: "none", background: "#0f1216", color: T.text, fontFamily: fUI, fontSize: 11.5 }}
+                                    style={{ width: "100%", height: 20, boxSizing: "border-box", padding: "1px 5px", borderRadius: 0, border: `1px solid ${T.blue}`, outline: "none", background: "#0f1216", color: T.text, fontFamily: fUI, fontSize: 11.5 }}
                                   />
                                 </div>
                               ) : (
@@ -5893,7 +5908,7 @@ export default function App() {
                                   type="button"
                                   title="Click to rename"
                                   onClick={() => startInlineFaceNameEdit(face)}
-                                  style={{ width: "100%", minWidth: 0, padding: "2px 1px", border: "none", borderRadius: 3, background: "transparent", color: face.name ? T.text : T.faint, fontFamily: fUI, fontSize: 12, lineHeight: 1.25, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "text" }}
+                                  style={{ width: "100%", height: 20, minWidth: 0, padding: "1px 4px", boxSizing: "border-box", border: "none", borderRadius: 0, background: "transparent", color: face.name ? T.text : T.faint, fontFamily: fUI, fontSize: 12, lineHeight: 1.25, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "text" }}
                                 >{face.name || "Unnamed"}</button>
                               )}
                               </div>
@@ -6051,7 +6066,7 @@ export default function App() {
                         </div>
                         <div style={{ display: "flex", justifyContent: "flex-end", gap: 9, padding: "12px 16px", borderTop: `1px solid ${T.line2}`, background: "rgba(255,255,255,0.02)" }}>
                           <button id="aver-face-delete-cancel-button" type="button" onClick={() => setFaceDeleteTarget(null)} style={secondaryBtn}>Cancel</button>
-                          <button id="aver-face-delete-confirm-button" type="button" onClick={confirmFaceDelete} style={secondaryBtn}>Delete</button>
+                          <button id="aver-face-delete-confirm-button" type="button" onClick={confirmFaceDelete} style={secondaryBtn}>OK</button>
                         </div>
                       </div>
                     </div>
@@ -6685,6 +6700,40 @@ export default function App() {
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 9, padding: "12px 16px", borderTop: `1px solid ${T.line2}`, background: "rgba(255,255,255,0.02)" }}>
               <button id="aver-live-preset-reset-cancel-button" type="button" onClick={() => setResetLivePresetTarget(null)} style={{ height: 31, padding: "0 16px", borderRadius: 5, border: `1px solid ${T.line2}`, background: "#101216", color: T.text, fontFamily: fUI, fontSize: 13, cursor: "pointer" }}>Cancel</button>
               <button id="aver-live-preset-reset-confirm-button" type="button" onClick={confirmResetLivePreset} style={{ height: 31, padding: "0 18px", borderRadius: 5, border: "none", background: T.blue, color: "#fff", fontFamily: fUI, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Reset</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {faceEnrollmentNoDataDialogOpen && (
+        <div
+          id="aver-face-enrollment-no-data-modal"
+          role="presentation"
+          onMouseDown={(event) => { if (event.target === event.currentTarget) setFaceEnrollmentNoDataDialogOpen(false); }}
+          style={{ position: "fixed", inset: 0, zIndex: 110, padding: 24, background: "rgba(0,0,0,0.72)", display: "flex", alignItems: "center", justifyContent: "center" }}
+        >
+          <div id="aver-face-enrollment-no-data-dialog" role="dialog" aria-modal="true" aria-labelledby="aver-face-enrollment-no-data-title" aria-describedby="aver-face-enrollment-no-data-message" style={{ width: "min(390px, calc(100vw - 48px))", overflow: "hidden", background: "#101216", border: `1px solid ${T.line2}`, borderRadius: 10, boxShadow: "0 20px 60px rgba(0,0,0,0.58)" }}>
+            <div id="aver-face-enrollment-no-data-title" style={{ padding: "17px 18px 10px", color: T.text, fontSize: 16, fontWeight: 600 }}>Face Enrollment unavailable</div>
+            <div id="aver-face-enrollment-no-data-message" style={{ padding: "0 18px 18px", color: T.dim, fontSize: 13, lineHeight: 1.55 }}>No data to enable Face Enrollment.</div>
+            <div style={{ display: "flex", justifyContent: "flex-end", padding: "12px 16px", borderTop: `1px solid ${T.line2}`, background: "rgba(255,255,255,0.02)" }}>
+              <button id="aver-face-enrollment-no-data-confirm-button" type="button" autoFocus onClick={() => setFaceEnrollmentNoDataDialogOpen(false)} style={{ height: 31, minWidth: 76, padding: "0 18px", borderRadius: 5, border: `1px solid ${T.line2}`, background: T.panel2, color: T.text, fontFamily: fUI, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>OK</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {faceLibraryFullDialogOpen && (
+        <div
+          id="aver-face-library-full-modal"
+          role="presentation"
+          onMouseDown={(event) => { if (event.target === event.currentTarget) setFaceLibraryFullDialogOpen(false); }}
+          style={{ position: "fixed", inset: 0, zIndex: 110, padding: 24, background: "rgba(0,0,0,0.72)", display: "flex", alignItems: "center", justifyContent: "center" }}
+        >
+          <div id="aver-face-library-full-dialog" role="dialog" aria-modal="true" aria-labelledby="aver-face-library-full-title" aria-describedby="aver-face-library-full-message" style={{ width: "min(390px, calc(100vw - 48px))", overflow: "hidden", background: "#101216", border: `1px solid ${T.line2}`, borderRadius: 10, boxShadow: "0 20px 60px rgba(0,0,0,0.58)" }}>
+            <div id="aver-face-library-full-title" style={{ padding: "17px 18px 10px", color: T.text, fontSize: 16, fontWeight: 600 }}>Face library is full</div>
+            <div id="aver-face-library-full-message" style={{ padding: "0 18px 18px", color: T.dim, fontSize: 13, lineHeight: 1.55 }}>No more can be saved.</div>
+            <div style={{ display: "flex", justifyContent: "flex-end", padding: "12px 16px", borderTop: `1px solid ${T.line2}`, background: "rgba(255,255,255,0.02)" }}>
+              <button id="aver-face-library-full-confirm-button" type="button" autoFocus onClick={() => setFaceLibraryFullDialogOpen(false)} style={{ height: 31, minWidth: 76, padding: "0 18px", borderRadius: 5, border: `1px solid ${T.line2}`, background: T.panel2, color: T.text, fontFamily: fUI, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>OK</button>
             </div>
           </div>
         </div>
