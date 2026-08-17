@@ -4514,21 +4514,30 @@ export default function App() {
                                             setLive((current) => ({ ...current, selectedQuickCall: n, presetSaveNumber: String(n) }));
                                           }
                                         }}
-                                        style={{ minWidth: 0, minHeight: 0, overflow: "hidden", boxSizing: "border-box", outline: "none", borderRadius: 5, border: `${applied ? 3 : selected ? 2 : 1}px solid ${applied ? T.blue : selected ? "#59616b" : T.line}`, background: applied ? "rgba(23,145,236,0.12)" : selected ? "rgba(255,255,255,0.028)" : "#101216", boxShadow: applied ? "0 0 0 1px rgba(23,145,236,0.35)" : "none", userSelect: "none", cursor: "pointer", transition: "background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease", display: "flex", flexDirection: "column" }}
+                                        style={{ minWidth: 0, minHeight: 0, overflow: "hidden", boxSizing: "border-box", outline: "none", borderRadius: 5, border: `${applied ? 3 : selected ? 2 : 1}px solid ${applied && selected ? "#4db7f7" : applied ? T.blue : selected ? "#59616b" : T.line}`, background: applied ? "rgba(23,145,236,0.12)" : selected ? "rgba(255,255,255,0.028)" : "#101216", boxShadow: applied && selected ? "0 0 0 1px rgba(77,183,247,0.42)" : applied ? "0 0 0 1px rgba(23,145,236,0.35)" : "none", userSelect: "none", cursor: "pointer", transition: "background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease", display: "flex", flexDirection: "column" }}
                                       >
                                         <div
                                           id={`aver-live-preset-thumbnail-${n}`}
                                           aria-hidden="true"
-                                          style={{ position: "relative", width: "100%", flex: "1 1 auto", minHeight: 0, display: "block", overflow: "hidden", padding: 0, border: "none", borderBottom: `1px solid ${T.line}`, background: saved ? "#000" : "linear-gradient(145deg, #181c22, #0d1014)" }}
+                                          style={{ position: "relative", width: "100%", flex: "1 1 auto", minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", padding: 0, border: "none", borderBottom: `1px solid ${T.line}`, background: "#101216" }}
                                         >
-                                          {saved && (
-                                            <span aria-hidden="true" style={{ position: "absolute", inset: 0, backgroundImage: `linear-gradient(rgba(0,0,0,0.04), rgba(0,0,0,0.16)), url(${snapshot.image})`, backgroundSize: "cover", backgroundPosition: "center", backgroundRepeat: "no-repeat", transform: `translate(${snapshot.pan}%, ${snapshot.tilt}%) scale(${snapshot.zoom * 1.65})`, transformOrigin: "center" }} />
+                                          {saved ? (
+                                            <div
+                                              id={`aver-live-preset-thumbnail-frame-${n}`}
+                                              style={{ position: "relative", height: "100%", maxWidth: "100%", aspectRatio: "16 / 9", flex: "0 0 auto", overflow: "hidden", background: "#000" }}
+                                            >
+                                              <span aria-hidden="true" style={{ position: "absolute", inset: 0, backgroundImage: `linear-gradient(rgba(0,0,0,0.04), rgba(0,0,0,0.16)), url(${snapshot.image})`, backgroundSize: "cover", backgroundPosition: "center", backgroundRepeat: "no-repeat", transform: `translate(${snapshot.pan}%, ${snapshot.tilt}%) scale(${snapshot.zoom * 1.65})`, transformOrigin: "center" }} />
+                                              <span style={{ position: "absolute", zIndex: 1, left: 4, top: 3, minWidth: 24, height: 16, padding: "0 3px", boxSizing: "border-box", display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: 3, background: "rgba(0,0,0,0.72)", color: "#fff", fontFamily: fMono, fontSize: 9, fontWeight: 700 }}>{String(n).padStart(3, "0")}</span>
+                                            </div>
+                                          ) : (
+                                            <>
+                                              <span style={{ position: "absolute", zIndex: 1, left: 4, top: 3, minWidth: 24, height: 16, padding: "0 3px", boxSizing: "border-box", display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: 3, background: "rgba(0,0,0,0.72)", color: "#fff", fontFamily: fMono, fontSize: 9, fontWeight: 700 }}>{String(n).padStart(3, "0")}</span>
+                                              <span aria-hidden="true" style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: T.faint, fontFamily: fUI, fontSize: 10, fontWeight: 600 }}>None</span>
+                                            </>
                                           )}
-                                          <span style={{ position: "absolute", zIndex: 1, left: 4, top: 3, minWidth: 24, height: 16, padding: "0 3px", boxSizing: "border-box", display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: 3, background: "rgba(0,0,0,0.72)", color: "#fff", fontFamily: fMono, fontSize: 9, fontWeight: 700 }}>{String(n).padStart(3, "0")}</span>
-                                          {!saved && <span aria-hidden="true" style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: T.faint, fontFamily: fUI, fontSize: 10, fontWeight: 600 }}>None</span>}
                                         </div>
                                         {!saved ? (
-                                          <div id={`aver-live-preset-empty-name-${n}`} style={{ width: "100%", height: 27, boxSizing: "border-box", padding: "0 6px", display: "flex", alignItems: "center", color: T.faint, fontFamily: fUI, fontSize: 11.5 }}>{presetName}</div>
+                                          <div id={`aver-live-preset-empty-name-${n}`} style={{ width: "100%", height: 27, flex: "0 0 27px", boxSizing: "border-box", padding: "0 6px", display: "flex", alignItems: "center", color: T.faint, fontFamily: fUI, fontSize: 11.5 }}>{presetName}</div>
                                         ) : editingLivePresetId === n ? (
                                           <input
                                             id={`aver-live-preset-name-input-${n}`}
@@ -4541,13 +4550,14 @@ export default function App() {
                                             onChange={(event) => setLivePresetNameDraft(event.target.value)}
                                             onBlur={commitLivePresetRename}
                                             onKeyDown={(event) => {
+                                              event.stopPropagation();
                                               if (event.key === "Enter") commitLivePresetRename();
                                               if (event.key === "Escape") { setEditingLivePresetId(null); setLivePresetNameDraft(""); }
                                             }}
-                                            style={{ width: "100%", height: 27, boxSizing: "border-box", padding: "0 6px", border: `1px solid ${T.blue}`, background: "#090b0f", color: T.text, fontFamily: fUI, fontSize: 11.5, outline: "none" }}
+                                            style={{ width: "100%", height: 27, flex: "0 0 27px", boxSizing: "border-box", padding: "0 6px", border: `1px solid ${T.blue}`, background: "#090b0f", color: T.text, fontFamily: fUI, fontSize: 11.5, outline: "none" }}
                                           />
                                         ) : (
-                                          <button id={`aver-live-preset-name-${n}`} type="button" title="Click name to edit" onClick={(event) => { event.stopPropagation(); beginLivePresetRename(n); }} onDoubleClick={(event) => event.stopPropagation()} style={{ width: "100%", height: 27, minWidth: 0, padding: "0 6px", display: "flex", alignItems: "center", cursor: "text", border: "none", background: "transparent", color: applied || selected ? "#fff" : T.text, fontFamily: fUI, fontSize: 11.5, textAlign: "left" }}>
+                                          <button id={`aver-live-preset-name-${n}`} type="button" title="Click name to edit" onClick={(event) => { event.stopPropagation(); beginLivePresetRename(n); }} onDoubleClick={(event) => event.stopPropagation()} style={{ width: "100%", height: 27, flex: "0 0 27px", minWidth: 0, padding: "0 6px", display: "flex", alignItems: "center", cursor: "text", border: "none", background: "transparent", color: applied || selected ? "#fff" : T.text, fontFamily: fUI, fontSize: 11.5, textAlign: "left" }}>
                                             <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{presetName}</span>
                                           </button>
                                         )}
@@ -6699,7 +6709,7 @@ export default function App() {
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 9, padding: "12px 16px", borderTop: `1px solid ${T.line2}`, background: "rgba(255,255,255,0.02)" }}>
               <button id="aver-live-preset-reset-cancel-button" type="button" onClick={() => setResetLivePresetTarget(null)} style={{ height: 31, padding: "0 16px", borderRadius: 5, border: `1px solid ${T.line2}`, background: "#101216", color: T.text, fontFamily: fUI, fontSize: 13, cursor: "pointer" }}>Cancel</button>
-              <button id="aver-live-preset-reset-confirm-button" type="button" onClick={confirmResetLivePreset} style={{ height: 31, padding: "0 18px", borderRadius: 5, border: "none", background: T.blue, color: "#fff", fontFamily: fUI, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Reset</button>
+              <button id="aver-live-preset-reset-confirm-button" type="button" onClick={confirmResetLivePreset} style={{ height: 31, padding: "0 16px", borderRadius: 5, border: `1px solid ${T.line2}`, background: "#101216", color: T.text, fontFamily: fUI, fontSize: 13, cursor: "pointer" }}>Reset</button>
             </div>
           </div>
         </div>
