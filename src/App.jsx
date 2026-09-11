@@ -1,9 +1,13 @@
 import TR615PaintLook from './TR615PaintLookV6'
+import PresenterV1 from './PresenterV1'
 
 function App() {
+  const requestedVersion = new URLSearchParams(window.location.search).get('version');
+  const version = requestedVersion === 'v1' || requestedVersion === 'v3' ? requestedVersion : 'v2';
+  const Page = version === 'v1' ? PresenterV1 : TR615PaintLook;
   return (
     <div style={{ width: '100vw', height: '100vh', margin: 0, padding: 0, overflow: 'hidden' }}>
-      <TR615PaintLook />
+      <Page prototypeVersion={version} />
     </div>
   )
 }

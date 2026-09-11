@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "homepage": "https://shiunhao.github.io/user-matrix",
+  "homepage": "https://shiunhao.github.io/tr615-face-recognition-ui",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
