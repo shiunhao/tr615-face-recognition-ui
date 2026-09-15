@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
+import useTrackingAreaEditor from './useTrackingAreaEditor';
 
 const initialPoints = [[50, 15], [80, 38], [70, 85], [30, 85], [20, 38]];
 
 export default function EffectiveTrackingArea({ enabled, onToggle, color, saved, onSave }) {
   const [points, setPoints] = useState(saved?.points || initialPoints);
   const [draft, setDraft] = useState(initialPoints);
-  const [editing, setEditing] = useState(false);
+  const { editing, begin, end, saveGuard } = useTrackingAreaEditor();
   const [thumbnail, setThumbnail] = useState(saved?.thumbnail || null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -19,6 +20,7 @@ export default function EffectiveTrackingArea({ enabled, onToggle, color, saved,
     setDraft(previous => previous.map((p, i) => i === index ? point : p));
   }
   async function save() {
+    const canSave = saveGuard();
     setSaving(true);
     setError('');
     try {
@@ -27,6 +29,7 @@ export default function EffectiveTrackingArea({ enabled, onToggle, color, saved,
       const image = new Image();
       image.src = new URL('modern_white_meeting_room.png', document.baseURI).href;
       await image.decode();
+      if (!canSave()) return;
       const width = panel.clientWidth, height = panel.clientHeight;
       const canvas = document.createElement('canvas');
       canvas.width = width; canvas.height = height;
@@ -46,9 +49,9 @@ export default function EffectiveTrackingArea({ enabled, onToggle, color, saved,
       setThumbnail(snapshot);
       onSave({ points: draft.map(p => [...p]), thumbnail: snapshot });
       setPoints(draft.map(p => [...p]));
-      setEditing(false);
+      end();
     } catch {
-      setError('Unable to capture Live View. Please try Save again.');
+      if (canSave()) setError('Unable to capture Live View. Please try Save again.');
     } finally { setSaving(false); }
   }
   return <>
@@ -61,7 +64,8 @@ export default function EffectiveTrackingArea({ enabled, onToggle, color, saved,
         {thumbnail ? <img alt="Saved Live View and tracking boundary" src={thumbnail} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> :
           <svg viewBox="0 0 100 100" style={{ width: '100%', height: '100%' }}><polygon points={polygon(points)} fill="none" stroke="#ff3333" strokeWidth="2" /></svg>}
       </div>
-      <button type="button" disabled={saving} onClick={() => editing ? save() : (setDraft(points.map(p => [...p])), setEditing(true))} style={{ padding: '5px 12px', border: '1px solid #444', borderRadius: 4, background: editing ? color : '#101216', color: '#fff', cursor: 'pointer' }}>{saving ? 'Saving…' : editing ? 'Save' : 'Set'}</button>
+      <button type="button" disabled={saving} onClick={() => editing ? save() : (setDraft(points.map(p => [...p])), setError(''), begin())} style={{ padding: '5px 12px', border: '1px solid #444', borderRadius: 4, background: editing ? color : '#101216', color: '#fff', cursor: 'pointer' }}>{saving ? 'Saving…' : editing ? 'Save' : 'Set'}</button>
+      {editing && <button type="button" onClick={end} style={{ padding: '5px 8px', border: '1px solid #444', borderRadius: 4, background: '#101216', color: '#fff', cursor: 'pointer' }}>Cancel</button>}
       <span title="Only people inside this area are tracked when enabled. Select Set, drag the five red points in Live View, then Save." aria-label="Tracking area information">ⓘ</span>
     </div>
     {error && <div role="alert" style={{ color: '#ff7777', fontSize: 12 }}>{error}</div>}

@@ -40,6 +40,7 @@ import AudioIntegratedPanel, { createAudioIntegratedState } from "./AudioIntegra
  * ========================================================================== */
 
 import EffectiveTrackingArea from "./EffectiveTrackingAreaV1";
+import ShieldZone from "./ShieldZone";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 
 // ============================================================================
@@ -4997,7 +4998,7 @@ export default function App() {
                     </div>
                   </div>
                 </div>
-                {/* Row 2: RTMP / RTSP / HLS */}
+                {/* Row 2: RTMP / RTSP Security / HLS, with independent RTSP Audio card */}
                 <div style={{ ...section, ...sectionGrid, alignItems: "stretch" }}>
                   <div style={card}>
                     <div style={head}>RTMP Settings</div>
@@ -5012,14 +5013,19 @@ export default function App() {
                     <div style={body}>
                       <Radio2 k="rtspSec" />
                       <RtspSecurityCredentials enabled={net.rtspSec === "on"} credentials={{ username: net.rtspUsername, password: net.rtspPassword }} onSave={({ username, password }) => setNet(previous => ({ ...previous, rtspUsername: username, rtspPassword: password }))} theme={T} />
-                      <div style={{ borderTop: `1px solid ${T.line}`, paddingTop: 7, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}><div style={{ ...lab, marginBottom: 0 }}>RTSP Audio Enable</div><Radio2 k="rtspAudio" /></div>
                     </div>
                   </div>
-                  <div style={card}>
-                    <div style={head}>HLS Settings</div>
-                    <div style={body}>
-                      <div><div style={lab}>Stream URL</div><Inp k="hlsUrl" /></div>
-                      <div style={{ display: "flex", gap: 10, marginTop: "auto" }}><Btn>Start Stream</Btn><Btn disabled>STOP</Btn></div>
+                  <div aria-label="RTSP Audio and HLS" style={{ display: "grid", gridTemplateRows: "auto minmax(0, 1fr)", gap: networkGap, minWidth: 0 }}>
+                    <div aria-label="RTSP Audio Enable" style={card}>
+                      <div style={head}>RTSP Audio Enable</div>
+                      <div style={body}><Radio2 k="rtspAudio" /></div>
+                    </div>
+                    <div style={card}>
+                      <div style={head}>HLS Settings</div>
+                      <div style={body}>
+                        <div><div style={lab}>Stream URL</div><Inp k="hlsUrl" /></div>
+                        <div style={{ display: "flex", gap: 10, marginTop: "auto" }}><Btn>Start Stream</Btn><Btn disabled>STOP</Btn></div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -5711,11 +5717,11 @@ export default function App() {
                   </div>
 
                   {/* 分頁內容 */}
-                  <div id="aver-trk-tab-content" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 8 }}>
+                  <div id="aver-trk-tab-content" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 8, boxSizing: "border-box" }}>
                 {trk.tab === "presenter" ? (
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, alignItems: "start" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, alignItems: "stretch", height: "100%", minHeight: 0 }}>
                     {/* 第 1 欄 */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8, justifyContent: "space-between", minHeight: 0 }}>
                       {[
                         { key: "sensitivity", label: "Tracking Sensitivity", min: 1, max: 3 },
                         { key: "returnTime", label: "Time of Return to Tracking Point", min: 3, max: 10 },
@@ -5738,9 +5744,9 @@ export default function App() {
                           <button type="button" aria-label="Microphone Tracking information" onClick={() => microphoneInfoRef.current?.showModal()} style={{ padding: 0, border: "none", background: "transparent", color: T.faint, cursor: "pointer", fontSize: 14 }}>ⓘ</button>
                           <TrackingTargetHelp dialogRef={microphoneInfoRef} theme={T} />
                         </div>
-                        <div style={{ borderTop: `1px solid ${T.line}`, paddingTop: 6 }}>
-                          <TrkCheck stateKey="multiPresenterTracking" label="Multi-Presenter Tracking" badge="Beta" />
-                        </div>
+                      </div>
+                      <div style={sec}>
+                        <TrkCheck stateKey="multiPresenterTracking" label="Multi-Presenter Tracking" badge="Beta" />
                       </div>
                       <div style={sec}>
                         <EffectiveTrackingArea saved={savedTrackingArea} onSave={setSavedTrackingArea} enabled={trk.effectiveArea} onToggle={() => updTrk("effectiveArea", !trk.effectiveArea)} color={T.blue} />
@@ -5748,7 +5754,7 @@ export default function App() {
                     </div>
 
                     {/* 第 2 欄 */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8, justifyContent: "space-between", minHeight: 0 }}>
                       <div style={sec}>
                         <span style={secTitle}>Tracking Point</span>
                         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -5778,18 +5784,14 @@ export default function App() {
                     </div>
 
                     {/* 第 3 欄 */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8, justifyContent: "space-between", minHeight: 0 }}>
                       <div style={{ ...sec, opacity: trk.microphoneTracking ? 0.4 : 1 }}>
                         <span style={{ display: "flex", alignItems: "center", gap: 6, ...secTitle }}>Multi-Presenter Detection <span style={{ color: T.faint, fontSize: 11 }}>ⓘ</span></span>
                         <div style={desc}>When two or more people appear, the camera moves to the “Multi-Person Preset Point” to include everyone. Select a preset point wide enough to cover the scene.</div>
                         <select aria-label="Multi-Presenter Detection" disabled={trk.microphoneTracking} value={trk.multiPresenter} onChange={(e) => updTrk("multiPresenter", e.target.value)} style={{ ...sel, cursor: trk.microphoneTracking ? "not-allowed" : "pointer" }}><option value="off">Off</option><option value="preset1">Preset 1</option><option value="preset2">Preset 2</option></select>
                       </div>
                       <div style={sec}>
-                        <div style={secTitle}>Set Shield Zone</div>
-                        <div style={{ display: "flex", gap: 8 }}>
-                          <button onClick={() => updTrk("shieldZone", true)} style={{ ...primaryBtn, flex: 1 }}>Set</button>
-                          <button onClick={() => updTrk("shieldZone", false)} style={{ ...secondaryBtn, flex: 1 }}>Clear</button>
-                        </div>
+                        <ShieldZone enabled={trk.shieldZone} onToggle={value => updTrk("shieldZone", value)} saved={trk.shieldZones} onSave={value => updTrk("shieldZones", value)} theme={T} />
                       </div>
                     </div>
                   </div>

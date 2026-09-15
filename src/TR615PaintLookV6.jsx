@@ -42,6 +42,7 @@ import AudioIntegratedPanel, { createAudioIntegratedState } from "./AudioIntegra
  * ========================================================================== */
 
 import EffectiveTrackingArea from "./EffectiveTrackingArea";
+import ShieldZone from "./ShieldZone";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 
 // ============================================================================
@@ -5001,7 +5002,7 @@ export default function App({ prototypeVersion = "v2" }) {
                     </div>
                   </div>
                 </div>
-                {/* Row 2: RTMP / RTSP / HLS */}
+                {/* Row 2: RTMP / RTSP Security / HLS, with independent RTSP Audio card */}
                 <div style={{ ...section, ...sectionGrid, alignItems: "stretch" }}>
                   <div style={card}>
                     <div style={head}>RTMP Settings</div>
@@ -5016,14 +5017,19 @@ export default function App({ prototypeVersion = "v2" }) {
                     <div style={body}>
                       <Radio2 k="rtspSec" />
                       <RtspSecurityCredentials enabled={net.rtspSec === "on"} credentials={{ username: net.rtspUsername, password: net.rtspPassword }} onSave={({ username, password }) => setNet(previous => ({ ...previous, rtspUsername: username, rtspPassword: password }))} theme={T} />
-                      <div style={{ borderTop: `1px solid ${T.line}`, paddingTop: 7, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}><div style={{ ...lab, marginBottom: 0 }}>RTSP Audio Enable</div><Radio2 k="rtspAudio" /></div>
                     </div>
                   </div>
-                  <div style={card}>
-                    <div style={head}>HLS Settings</div>
-                    <div style={body}>
-                      <div><div style={lab}>Stream URL</div><Inp k="hlsUrl" /></div>
-                      <div style={{ display: "flex", gap: 10, marginTop: "auto" }}><Btn>Start Stream</Btn><Btn disabled>STOP</Btn></div>
+                  <div aria-label="RTSP Audio and HLS" style={{ display: "grid", gridTemplateRows: "auto minmax(0, 1fr)", gap: networkGap, minWidth: 0 }}>
+                    <div aria-label="RTSP Audio Enable" style={card}>
+                      <div style={head}>RTSP Audio Enable</div>
+                      <div style={body}><Radio2 k="rtspAudio" /></div>
+                    </div>
+                    <div style={card}>
+                      <div style={head}>HLS Settings</div>
+                      <div style={body}>
+                        <div><div style={lab}>Stream URL</div><Inp k="hlsUrl" /></div>
+                        <div style={{ display: "flex", gap: 10, marginTop: "auto" }}><Btn>Start Stream</Btn><Btn disabled>STOP</Btn></div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -5715,7 +5721,7 @@ export default function App({ prototypeVersion = "v2" }) {
                   </div>
 
                   {/* 分頁內容 */}
-                  <div id="aver-trk-tab-content" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 8 }}>
+                  <div id="aver-trk-tab-content" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 8, boxSizing: "border-box" }}>
                 {trk.tab === "presenter" ? (
 
                   <div id="aver-presenter-panel" style={{ display: "flex", flexDirection: "column", gap: 8, height: "100%", minHeight: 0 }}>
@@ -5739,7 +5745,7 @@ export default function App({ prototypeVersion = "v2" }) {
                       <section className="presenter-compact-section" aria-label="Tracking Area">
                         <div style={{ ...secTitle, flexShrink: 0, padding: "8px 10px", margin: 0, borderBottom: `1px solid ${T.line}` }}>Tracking Area</div><div className="presenter-card-body">
                         <EffectiveTrackingArea saved={savedTrackingArea} onSave={setSavedTrackingArea} enabled={trk.effectiveArea} onToggle={() => updTrk("effectiveArea", !trk.effectiveArea)} color={T.blue} />
-                        <div className="presenter-form-row" style={{ borderTop: `1px solid ${T.line}`, paddingTop: 10 }}><label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}><input type="checkbox" checked={trk.shieldZone} onChange={e => updTrk("shieldZone", e.target.checked)} style={{ accentColor: T.blue }} />Shield Zone</label><div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}><button onClick={() => updTrk("shieldZone", true)} style={primaryBtn}>Set</button><button onClick={() => updTrk("shieldZone", false)} style={secondaryBtn}>Clear</button></div></div>
+                        <div style={{ borderTop: `1px solid ${T.line}`, paddingTop: 10 }}><ShieldZone enabled={trk.shieldZone} onToggle={value => updTrk("shieldZone", value)} saved={trk.shieldZones} onSave={value => updTrk("shieldZones", value)} theme={T} /></div>
                       </div></section>
                       <section className="presenter-compact-section" aria-label="Framing">
                         <div style={{ ...secTitle, flexShrink: 0, padding: "8px 10px", margin: 0, borderBottom: `1px solid ${T.line}` }}>Framing</div><div className="presenter-card-body">

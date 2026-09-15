@@ -35,7 +35,7 @@ export default function RtspSecurityCredentials({ enabled, credentials, onSave, 
     fontFamily: 'inherit', fontSize: 12.5, outline: 'none',
   };
 
-  return <div aria-label="RTSP credentials" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '6px 8px', opacity: enabled ? 1 : .5 }}>
+  return <div aria-label="RTSP credentials" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gridTemplateRows: 'auto minmax(28px, 1fr)', gap: '6px 8px', flex: '1 1 auto', minHeight: 0, opacity: enabled ? 1 : .5 }}>
     <div>
       <label htmlFor="rtsp-security-username" style={{ display: 'block', marginBottom: 3, color: T.dim, fontSize: 12, fontWeight: 600 }}>Username</label>
       <input id="rtsp-security-username" value={draft.username} disabled={!enabled} autoComplete="off" onChange={event => update('username', event.target.value)} style={{ ...fieldStyle, paddingRight: 9 }} />
@@ -47,7 +47,7 @@ export default function RtspSecurityCredentials({ enabled, credentials, onSave, 
         <button type="button" aria-label={passwordVisible ? 'Hide RTSP password' : 'Show RTSP password'} aria-pressed={passwordVisible} disabled={!enabled} onClick={() => setPasswordVisible(value => !value)} style={{ position: 'absolute', right: 4, top: 3, width: 24, height: 24, padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', borderRadius: 3, background: 'transparent', color: enabled ? T.dim : T.faint, cursor: enabled ? 'pointer' : 'not-allowed' }}><EyeIcon visible={passwordVisible} /></button>
       </div>
     </div>
-    <div style={{ gridColumn: '1 / -1', minHeight: 28, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+    <div style={{ gridColumn: '1 / -1', minHeight: 28, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 }}>
       <span role="status" aria-live="polite" style={{ color: '#67d7a5', fontSize: 11.5 }}>{savedNotice ? 'RTSP credentials saved.' : ''}</span>
       <button type="button" disabled={!canSave} onClick={() => { onSave(draft); setSavedNotice(true); }} style={{ minHeight: 28, padding: '4px 14px', border: `1px solid ${canSave ? T.blue : T.line2}`, borderRadius: 4, background: canSave ? T.blue : '#0d0f11', color: canSave ? '#fff' : T.faint, fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, cursor: canSave ? 'pointer' : 'not-allowed' }}>Save</button>
     </div>

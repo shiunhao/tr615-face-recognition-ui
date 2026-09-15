@@ -1,6 +1,7 @@
 import AudienceModeBar from "./AudienceModeBar";
 import { useState } from 'react';
 import EffectiveTrackingArea from './EffectiveTrackingArea';
+import ShieldZone from './ShieldZone';
 import FramingSelect from './FramingSelect';
 
 export default function AudienceSettings({ settings, onChange, theme: T, visualTargets = false }) {
@@ -15,9 +16,8 @@ export default function AudienceSettings({ settings, onChange, theme: T, visualT
     <section className="audience-card" aria-label="Audience Tracking Area">
       <h3>Tracking Area</h3><div className="audience-card-body">
         <EffectiveTrackingArea enabled={settings.effectiveArea} onToggle={() => update('effectiveArea', !settings.effectiveArea)} saved={settings.savedArea} onSave={value => update('savedArea', value)} color={T.blue} />
-        <div className="audience-row" style={{ borderTop: `1px solid ${T.line}`, paddingTop: 10 }}>
-          {check('shieldZone', 'Shield Zone')}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}><button style={{ ...button, background: T.blue }} onClick={() => update('shieldZone', true)}>Set</button><button style={button} onClick={() => update('shieldZone', false)}>Clear</button></div>
+        <div style={{ borderTop: `1px solid ${T.line}`, paddingTop: 10 }}>
+          <ShieldZone enabled={settings.shieldZone} onToggle={value => update('shieldZone', value)} saved={settings.shieldZones} onSave={value => update('shieldZones', value)} theme={T} />
         </div>
       </div>
     </section>
