@@ -3682,6 +3682,14 @@ export default function App() {
           #aver-trk-tab-content > div {
             grid-template-columns: 1fr !important;
           }
+          #aver-trk-tab-content > .presenter-v1-grid {
+            grid-template-rows: none !important;
+            height: auto !important;
+          }
+          #aver-trk-tab-content > .presenter-v1-grid > * {
+            grid-column: 1 !important;
+            grid-row: auto !important;
+          }
           #aver-tracking-zone-panel {
             grid-template-columns: 1fr !important;
           }
@@ -5719,14 +5727,12 @@ export default function App() {
                   {/* 分頁內容 */}
                   <div id="aver-trk-tab-content" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 8, boxSizing: "border-box" }}>
                 {trk.tab === "presenter" ? (
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, alignItems: "stretch", height: "100%", minHeight: 0 }}>
-                    {/* 第 1 欄 */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8, justifyContent: "space-between", minHeight: 0 }}>
+                  <div className="presenter-v1-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gridTemplateRows: "repeat(6, minmax(0, 1fr))", gap: 8, alignItems: "stretch", height: "100%", minHeight: 0 }}>
                       {[
                         { key: "sensitivity", label: "Tracking Sensitivity", min: 1, max: 3 },
                         { key: "returnTime", label: "Time of Return to Tracking Point", min: 3, max: 10 },
-                      ].map(({ key, label, min, max }) => (
-                        <div key={key} style={{ ...sec, padding: "6px 10px", gap: 2 }}>
+                      ].map(({ key, label, min, max }, sliderIndex) => (
+                        <div key={key} style={{ ...sec, gridColumn: 1, gridRow: sliderIndex + 1, padding: "5px 10px", gap: 1 }}>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                             <span style={{ ...secTitle, marginBottom: 0 }}>{label}</span>
                             <span style={{ fontFamily: fMono, color: T.blue, fontSize: 13 }}>{trk[key]}</span>
@@ -5738,24 +5744,20 @@ export default function App() {
                           </div>
                         </div>
                       ))}
-                      <div style={sec}>
+                      <div style={{ ...sec, gridColumn: 1, gridRow: 3, justifyContent: "center" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                           <TrkCheck stateKey="microphoneTracking" label="Microphone Tracking" />
                           <button type="button" aria-label="Microphone Tracking information" onClick={() => microphoneInfoRef.current?.showModal()} style={{ padding: 0, border: "none", background: "transparent", color: T.faint, cursor: "pointer", fontSize: 14 }}>ⓘ</button>
                           <TrackingTargetHelp dialogRef={microphoneInfoRef} theme={T} />
                         </div>
                       </div>
-                      <div style={sec}>
+                      <div style={{ ...sec, gridColumn: 1, gridRow: 4, justifyContent: "center" }}>
                         <TrkCheck stateKey="multiPresenterTracking" label="Multi-Presenter Tracking" badge="Beta" />
                       </div>
-                      <div style={sec}>
+                      <div style={{ ...sec, gridColumn: 1, gridRow: "5 / 7", justifyContent: "center" }}>
                         <EffectiveTrackingArea saved={savedTrackingArea} onSave={setSavedTrackingArea} enabled={trk.effectiveArea} onToggle={() => updTrk("effectiveArea", !trk.effectiveArea)} color={T.blue} />
                       </div>
-                    </div>
-
-                    {/* 第 2 欄 */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8, justifyContent: "space-between", minHeight: 0 }}>
-                      <div style={sec}>
+                      <div style={{ ...sec, gridColumn: 2, gridRow: "1 / 4" }}>
                         <span style={secTitle}>Tracking Point</span>
                         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                           <input value={trk.presetPoint} onChange={(e) => updTrk("presetPoint", e.target.value)} style={{ ...sel, flex: 1 }} />
@@ -5773,7 +5775,7 @@ export default function App() {
                           </div>
                         </div>
                       </div>
-                      <div style={sec}>
+                      <div style={{ ...sec, gridColumn: 2, gridRow: "4 / 7" }}>
                         <div style={{ display: "flex", gap: 24 }}>
                           <TrkCheck stateKey="autoZoom" label="Auto Zoom" />
                           <TrkCheck stateKey="autoTilt" label="Auto Tilt" />
@@ -5781,19 +5783,14 @@ export default function App() {
                         <div style={desc}>When Auto Zoom is off, camera stops zooming in/out automatically and shoots the presenter according to the shot size of the preset you choose.</div>
                         <select value={trk.autoZoomPreset} onChange={(e) => updTrk("autoZoomPreset", e.target.value)} style={sel}><option>Preset 1</option><option>Preset 2</option><option>Preset 3</option></select>
                       </div>
-                    </div>
-
-                    {/* 第 3 欄 */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8, justifyContent: "space-between", minHeight: 0 }}>
-                      <div style={{ ...sec, opacity: trk.microphoneTracking ? 0.4 : 1 }}>
+                      <div style={{ ...sec, gridColumn: 3, gridRow: "1 / 4", opacity: trk.microphoneTracking ? 0.4 : 1 }}>
                         <span style={{ display: "flex", alignItems: "center", gap: 6, ...secTitle }}>Multi-Presenter Detection <span style={{ color: T.faint, fontSize: 11 }}>ⓘ</span></span>
                         <div style={desc}>When two or more people appear, the camera moves to the “Multi-Person Preset Point” to include everyone. Select a preset point wide enough to cover the scene.</div>
                         <select aria-label="Multi-Presenter Detection" disabled={trk.microphoneTracking} value={trk.multiPresenter} onChange={(e) => updTrk("multiPresenter", e.target.value)} style={{ ...sel, cursor: trk.microphoneTracking ? "not-allowed" : "pointer" }}><option value="off">Off</option><option value="preset1">Preset 1</option><option value="preset2">Preset 2</option></select>
                       </div>
-                      <div style={sec}>
+                      <div style={{ ...sec, gridColumn: 3, gridRow: "4 / 7", justifyContent: "center" }}>
                         <ShieldZone enabled={trk.shieldZone} onToggle={value => updTrk("shieldZone", value)} saved={trk.shieldZones} onSave={value => updTrk("shieldZones", value)} theme={T} />
                       </div>
-                    </div>
                   </div>
                 ) : trk.tab === "audience" ? (
                   <AudienceV1 settings={audienceSettings} onChange={setAudienceSettings} theme={T} />
