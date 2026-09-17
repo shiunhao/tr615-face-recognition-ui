@@ -5768,7 +5768,7 @@ export default function App({ prototypeVersion = "v2" }) {
                       </div></section>
                     </div>
                     <dialog ref={presenterHelpRef} aria-labelledby="presenter-help-title" style={{ width: "min(420px, calc(100vw - 48px))", padding: 24, border: `1px solid ${T.line2}`, borderRadius: 10, background: T.panel, color: T.text }}>
-                      <h2 id="presenter-help-title" style={{ margin: "0 0 12px", fontSize: 17 }}>{presenterHelp.title}</h2><p style={{ fontSize: 13, lineHeight: 1.7 }}>{presenterHelp.text}</p><div style={{ textAlign: "right" }}><button style={primaryBtn} onClick={() => presenterHelpRef.current?.close()}>Close</button></div>
+                      <h2 id="presenter-help-title" style={{ margin: "0 0 12px", fontSize: 17 }}>{presenterHelp.title}</h2><p style={{ fontSize: 13, lineHeight: 1.7 }}>{presenterHelp.text}</p><div style={{ textAlign: "right" }}><button style={primaryBtn} onClick={() => presenterHelpRef.current?.close()}>OK</button></div>
                     </dialog>
                     <style>{`.presenter-compact-section { display:flex; flex-direction:column; gap:0; min-width:0; min-height:0; overflow:hidden; font-size:12px; padding:0; box-sizing:border-box; border:1px solid ${T.line}; border-radius:6px; background:rgba(0,0,0,0.12); } .presenter-card-body { display:flex; flex-direction:column; gap:10px; min-height:0; overflow-y:auto; padding:10px; scrollbar-width:thin; } .presenter-form-row { display:grid; grid-template-columns:96px minmax(0,1fr); align-items:center; gap:8px; min-height:28px; } .presenter-form-row select,.presenter-form-row input:not([type=range]) { height:28px; padding:3px 7px !important; }`}</style>
                   </div>

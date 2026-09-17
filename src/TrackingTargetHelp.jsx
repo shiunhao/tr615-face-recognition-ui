@@ -34,7 +34,7 @@ export default function TrackingTargetHelp({ dialogRef, theme: T }) {
       </div>
     </div>
 
-    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}><button type="button" onClick={close} style={{ background: '#101216', border: `1px solid ${T.line2}`, borderRadius: 5, padding: '7px 16px', color: T.text, fontSize: 13, cursor: 'pointer' }}>Close</button></div>
+    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}><button type="button" onClick={close} style={{ background: '#101216', border: `1px solid ${T.line2}`, borderRadius: 5, padding: '7px 16px', color: T.text, fontSize: 13, cursor: 'pointer' }}>OK</button></div>
     <style>{`@media(max-width:520px){.tracking-help-row{grid-template-columns:110px minmax(0,1fr) !important}.tracking-help-row img{max-width:110px}}`}</style>
   </dialog>;
 }

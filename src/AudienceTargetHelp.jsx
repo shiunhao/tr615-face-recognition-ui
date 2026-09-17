@@ -48,7 +48,7 @@ export default function AudienceTargetHelp({ dialogRef, theme: T }) {
         </div>
       </div>)}
     </div>
-    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 2 }}><button type="button" onClick={close} style={{ background: '#101216', border: `1px solid ${T.line2}`, borderRadius: 5, padding: '7px 16px', color: T.text, fontSize: 13, cursor: 'pointer' }}>Close</button></div>
+    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 2 }}><button type="button" onClick={close} style={{ background: '#101216', border: `1px solid ${T.line2}`, borderRadius: 5, padding: '7px 16px', color: T.text, fontSize: 13, cursor: 'pointer' }}>OK</button></div>
     <style>{`@media(max-width:520px){.audience-help-row{grid-template-columns:1fr !important}.audience-help-row img{max-width:180px}.audience-help-row>div{border-left:0 !important;padding-left:0 !important}}`}</style>
   </dialog>;
 }
