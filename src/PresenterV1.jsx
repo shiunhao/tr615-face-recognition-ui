@@ -1,4 +1,5 @@
 import AudienceV1 from "./AudienceV1";
+import { V4Context } from "./V4AudienceDesign";
 import TrackingTargetHelp from "./TrackingTargetHelp";
 import LayoutInspector from "./LayoutInspector";
 import RtspSecurityCredentials from "./RtspSecurityCredentials";
@@ -1204,7 +1205,9 @@ function FaceEnrollmentCrop({ candidateId, label, recaptured = false }) {
   );
 }
 
-export default function App() {
+export default function App({ prototypeVersion = 'v1' }) {
+  const isV4 = prototypeVersion === 'v4';
+  const [designBranch, setDesignBranch] = useState(() => Math.min(4, Math.max(1, Number(new URLSearchParams(window.location.search).get('branch')) || 1)));
   const [st, setSt] = useState(JSON.parse(JSON.stringify(DEF)));
   const [block, setBlock] = useState("matrix");
   const [selAxis, setSelAxis] = useState(null);
@@ -1260,7 +1263,7 @@ export default function App() {
   const [savedTrackingArea, setSavedTrackingArea] = useState(null);
   const [audienceSettings, setAudienceSettings] = useState({ microphone: true, pose: false, hand: false, multiPresenterTracking: false, sensitivity: 2, returnTime: 3, presetPoint: "1", peopleSize: "Full Body", placement: "Center", height: "Height1", effectiveArea: false, shieldZone: false, savedArea: null, savedPoint: null });
   const [trk, setTrk] = useState({
-    tab: "presenter",
+    tab: isV4 ? "audience" : "presenter",
     sensitivity: 2, returnTime: 3, presetPoint: "1",
     peopleSize: "Upper Body", placement: "Center", height: "Height1",
     effectiveArea: false, autoZoom: true, autoTilt: true, autoZoomPreset: "Preset 1",
@@ -3987,12 +3990,20 @@ export default function App() {
           style={{ width: "100%", height: 34, padding: "0 10px", display: "flex", alignItems: "center", gap: 8, borderRadius: 6, border: `1px solid ${versionMenuOpen ? T.blue : T.line2}`, outline: "none", background: "rgba(16,18,22,0.96)", boxShadow: versionMenuOpen ? "0 0 0 2px rgba(30,155,240,0.15), 0 4px 14px rgba(0,0,0,0.34)" : "0 4px 14px rgba(0,0,0,0.34)", color: "#fff", fontFamily: fUI, fontSize: 11.5, fontWeight: 600, cursor: "pointer", textAlign: "left" }}
         >
           <span aria-hidden="true" style={{ width: 7, height: 7, flexShrink: 0, borderRadius: "50%", background: T.blue, boxShadow: `0 0 7px ${T.blue}` }} />
-          <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>V1</span>
+          <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{isV4 ? `V4_分支${designBranch}` : 'V1'}</span>
           <span aria-hidden="true" style={{ color: T.dim, fontSize: 11, transform: versionMenuOpen ? "rotate(180deg)" : "none", transition: "transform 0.16s ease" }}>▼</span>
         </button>
         {versionMenuOpen && (
-          <div id="aver-version-switcher-menu" role="listbox" aria-label="Prototype versions" style={{ position: "absolute", top: 38, left: 0, width: "100%", boxSizing: "border-box", padding: 4, borderRadius: 6, border: `1px solid ${T.line2}`, background: T.panel2, boxShadow: "0 10px 28px rgba(0,0,0,0.46)", overflow: "hidden" }}>
-            {["V1", "V2", "V3"].map(version => <button key={version} id={`aver-version-option-${version.toLowerCase()}`} type="button" role="option" aria-selected={version === "V1"} onClick={() => { if (version === "V1") setVersionMenuOpen(false); else { const url = new URL(window.location.href); url.searchParams.set("version", version.toLowerCase()); window.location.assign(url.href); } }} style={{ width: "100%", minHeight: 32, padding: "6px 9px", border: "none", borderRadius: 4, background: version === "V1" ? "rgba(30,155,240,0.16)" : "transparent", color: version === "V1" ? "#fff" : T.dim, fontFamily: fUI, fontSize: 11.5, textAlign: "left", cursor: "pointer" }}>{version}</button>)}
+          <div id="aver-version-switcher-menu" role="listbox" aria-label="Prototype versions" style={{ position: "absolute", top: 38, right: 0, width: 232, boxSizing: "border-box", padding: 4, borderRadius: 6, border: `1px solid ${T.line2}`, background: T.panel2, boxShadow: "0 10px 28px rgba(0,0,0,0.46)", overflow: "hidden" }}>
+            {["V1", "V2", "V3"].map(version => <button key={version} id={`aver-version-option-${version.toLowerCase()}`} type="button" role="option" aria-selected={version.toLowerCase() === prototypeVersion} onClick={() => { const url = new URL(window.location.href); url.searchParams.set("version", version.toLowerCase()); window.location.assign(url.href); }} style={{ width: "100%", minHeight: 32, padding: "6px 9px", border: "none", borderRadius: 4, background: version.toLowerCase() === prototypeVersion ? "rgba(30,155,240,0.16)" : "transparent", color: T.text, fontFamily: fUI, fontSize: 11.5, textAlign: "left", cursor: "pointer" }}>{version}</button>)}
+            <div style={{ marginTop: 2, paddingTop: 2, borderTop: `1px solid ${T.line}` }}>
+              <div style={{ padding: "6px 9px 3px", color: isV4 ? T.text : T.dim, fontSize: 11.5, fontWeight: 700 }}>V4 設計比較</div>
+              {['情境說明＋示意圖','固定追蹤對象','Disabled Checkbox','下拉選單＋圖示'].map((label, index) => {
+                const branch = index + 1;
+                const selected = isV4 && designBranch === branch;
+                return <button key={label} type="button" role="option" aria-selected={selected} onClick={() => { const url = new URL(window.location.href); url.searchParams.set('version', 'v4'); url.searchParams.set('branch', branch); if (isV4) { setDesignBranch(branch); window.history.replaceState(null, '', url); setVersionMenuOpen(false); } else window.location.assign(url.href); }} style={{ width: "100%", minHeight: 31, padding: "5px 9px 5px 18px", border: "none", borderRadius: 4, background: selected ? "rgba(30,155,240,0.16)" : "transparent", color: selected ? '#fff' : T.dim, fontFamily: fUI, fontSize: 11.5, textAlign: "left", cursor: "pointer" }}>{`分支${branch} — ${label}`}</button>;
+              })}
+            </div>
           </div>
         )}
       </div>
@@ -5534,7 +5545,7 @@ export default function App() {
             const TrkCheck = ({ stateKey, label, disabled = false, badge }) => (
               <button type="button" disabled={disabled} onClick={() => updTrk(stateKey, !trk[stateKey])}
                 style={{ display: "flex", alignItems: "center", gap: 8, padding: 0, border: "none", background: "transparent", color: disabled ? T.faint : T.text, fontFamily: fUI, fontSize: 13, cursor: disabled ? "not-allowed" : "pointer", textAlign: "left", opacity: disabled ? 0.5 : 1 }}>
-                <span style={{ width: 16, height: 16, flexShrink: 0, borderRadius: 3, border: `1.5px solid ${trk[stateKey] ? T.blue : T.line2}`, background: trk[stateKey] ? T.blue : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#fff" }}>{trk[stateKey] && "✓"}</span>
+                <span className={`tracking-checkbox-visual${trk[stateKey] ? " is-checked" : ""}`}>{trk[stateKey] && "✓"}</span>
                 <span>{label}</span>
                 {badge && <span style={{ fontSize: 9.5, fontWeight: 700, color: "#fff", background: T.amber, borderRadius: 3, padding: "1px 5px" }}>{badge}</span>}
               </button>
@@ -5725,9 +5736,10 @@ export default function App() {
                   </div>
 
                   {/* 分頁內容 */}
-                  <div id="aver-trk-tab-content" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 8, boxSizing: "border-box" }}>
+                  {isV4 && designBranch === 1 && trk.tab === 'presenter' && <V4Context audience={false} theme={T} />}
+                  <div id="aver-trk-tab-content" className={trk.tab === "audience" ? "_audience" : undefined} style={{ flex: 1, minHeight: 0, overflowY: trk.tab === "audience" ? "hidden" : "auto", padding: 8, boxSizing: "border-box" }}>
                 {trk.tab === "presenter" ? (
-                  <div className="presenter-v1-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gridTemplateRows: "repeat(6, minmax(0, 1fr))", gap: 8, alignItems: "stretch", height: "100%", minHeight: 0 }}>
+                  <div className="presenter-v1-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gridTemplateRows: "repeat(4, minmax(0, 1.15fr)) repeat(2, minmax(0, .7fr))", gap: 8, alignItems: "stretch", height: "100%", minHeight: 0 }}>
                       {[
                         { key: "sensitivity", label: "Tracking Sensitivity", min: 1, max: 3 },
                         { key: "returnTime", label: "Time of Return to Tracking Point", min: 3, max: 10 },
@@ -5746,8 +5758,8 @@ export default function App() {
                       ))}
                       <div style={{ ...sec, gridColumn: 1, gridRow: 3, justifyContent: "center" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <TrkCheck stateKey="microphoneTracking" label="Microphone Tracking" />
-                          <button type="button" aria-label="Microphone Tracking information" onClick={() => microphoneInfoRef.current?.showModal()} style={{ padding: 0, border: "none", background: "transparent", color: T.faint, cursor: "pointer", fontSize: 14 }}>ⓘ</button>
+                          <TrkCheck stateKey="microphoneTracking" label="Handheld Microphone Tracking" />
+                          <button type="button" aria-label="Handheld Microphone Tracking information" onClick={() => microphoneInfoRef.current?.showModal()} style={{ padding: 0, border: "none", background: "transparent", color: T.faint, cursor: "pointer", fontSize: 14 }}>ⓘ</button>
                           <TrackingTargetHelp dialogRef={microphoneInfoRef} theme={T} />
                         </div>
                       </div>
@@ -5757,13 +5769,16 @@ export default function App() {
                       <div style={{ ...sec, gridColumn: 1, gridRow: "5 / 7", justifyContent: "center" }}>
                         <EffectiveTrackingArea saved={savedTrackingArea} onSave={setSavedTrackingArea} enabled={trk.effectiveArea} onToggle={() => updTrk("effectiveArea", !trk.effectiveArea)} color={T.blue} />
                       </div>
-                      <div style={{ ...sec, gridColumn: 2, gridRow: "1 / 4" }}>
-                        <span style={secTitle}>Tracking Point</span>
-                        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                      <div style={{ gridColumn: 2, gridRow: "1 / 7", display: "flex", flexDirection: "column", gap: 8, minWidth: 0, alignSelf: "start" }}>
+                      <div style={{ ...sec, display: "grid", gridTemplateColumns: "96px minmax(0, 1fr)", alignItems: "center", gap: 8, padding: "5px 10px" }}>
+                        <span style={{ ...secTitle, margin: 0 }}>Tracking Point</span>
+                        <div style={{ display: "flex", gap: 10, alignItems: "center", minWidth: 0 }}>
                           <input value={trk.presetPoint} onChange={(e) => updTrk("presetPoint", e.target.value)} style={{ ...sel, flex: 1 }} />
                           <button style={{ padding: "7px 16px", fontSize: 13, cursor: "pointer", borderRadius: 4, border: `1px solid ${T.line2}`, background: "#101216", color: T.text, fontFamily: fUI }}>Save</button>
                         </div>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 4 }}>
+                      </div>
+                      <div style={{ ...sec, justifyContent: "center" }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
                           <div><div style={{ ...secTitle, marginBottom: 4 }}>People Size</div>
                             <select value={trk.peopleSize} onChange={(e) => updTrk("peopleSize", e.target.value)} style={sel}><option>Upper Body</option><option>Full Body</option><option>Close Up</option></select>
                           </div>
@@ -5775,7 +5790,7 @@ export default function App() {
                           </div>
                         </div>
                       </div>
-                      <div style={{ ...sec, gridColumn: 2, gridRow: "4 / 7" }}>
+                      <div style={sec}>
                         <div style={{ display: "flex", gap: 24 }}>
                           <TrkCheck stateKey="autoZoom" label="Auto Zoom" />
                           <TrkCheck stateKey="autoTilt" label="Auto Tilt" />
@@ -5783,17 +5798,20 @@ export default function App() {
                         <div style={desc}>When Auto Zoom is off, camera stops zooming in/out automatically and shoots the presenter according to the shot size of the preset you choose.</div>
                         <select value={trk.autoZoomPreset} onChange={(e) => updTrk("autoZoomPreset", e.target.value)} style={sel}><option>Preset 1</option><option>Preset 2</option><option>Preset 3</option></select>
                       </div>
-                      <div style={{ ...sec, gridColumn: 3, gridRow: "1 / 4", opacity: trk.microphoneTracking ? 0.4 : 1 }}>
+                      </div>
+                      <div style={{ gridColumn: 3, gridRow: "1 / 7", display: "flex", flexDirection: "column", gap: 8, minWidth: 0, alignSelf: "start" }}>
+                      <div style={{ ...sec, opacity: trk.microphoneTracking ? 0.4 : 1 }}>
                         <span style={{ display: "flex", alignItems: "center", gap: 6, ...secTitle }}>Multi-Presenter Detection <span style={{ color: T.faint, fontSize: 11 }}>ⓘ</span></span>
                         <div style={desc}>When two or more people appear, the camera moves to the “Multi-Person Preset Point” to include everyone. Select a preset point wide enough to cover the scene.</div>
                         <select aria-label="Multi-Presenter Detection" disabled={trk.microphoneTracking} value={trk.multiPresenter} onChange={(e) => updTrk("multiPresenter", e.target.value)} style={{ ...sel, cursor: trk.microphoneTracking ? "not-allowed" : "pointer" }}><option value="off">Off</option><option value="preset1">Preset 1</option><option value="preset2">Preset 2</option></select>
                       </div>
-                      <div style={{ ...sec, gridColumn: 3, gridRow: "4 / 7", justifyContent: "center" }}>
+                      <div style={sec}>
                         <ShieldZone enabled={trk.shieldZone} onToggle={value => updTrk("shieldZone", value)} saved={trk.shieldZones} onSave={value => updTrk("shieldZones", value)} theme={T} />
+                      </div>
                       </div>
                   </div>
                 ) : trk.tab === "audience" ? (
-                  <AudienceV1 settings={audienceSettings} onChange={setAudienceSettings} theme={T} />
+                  <AudienceV1 settings={audienceSettings} onChange={setAudienceSettings} theme={T} designBranch={isV4 ? designBranch : 0} />
                 ) : trk.tab === "zone" ? (
                   <div id="aver-tracking-zone-panel" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: SP[3], alignItems: "start" }}>
                     <div id="aver-tracking-zone-sliders-column" style={{ display: "flex", flexDirection: "column", gap: 8 }}>

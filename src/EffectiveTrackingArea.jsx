@@ -55,9 +55,9 @@ export default function EffectiveTrackingArea({ enabled, onToggle, color, saved,
     } finally { setSaving(false); }
   }
   return <>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap', width: '100%' }}>
       <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', flex: 1 }}>
-        <input type="checkbox" checked={enabled} onChange={onToggle} style={{ accentColor: color }} />
+        <input className="tracking-checkbox" type="checkbox" checked={enabled} onChange={onToggle} />
         Effective Tracking Area
       </label>
       <div title="Saved tracking area" style={{ width: 60, height: 40, background: '#000', flexShrink: 0 }}>
@@ -66,7 +66,7 @@ export default function EffectiveTrackingArea({ enabled, onToggle, color, saved,
       </div>
       <button type="button" disabled={saving} onClick={() => editing ? save() : (setDraft(points.map(p => [...p])), setError(''), begin())} style={{ padding: '5px 12px', border: '1px solid #444', borderRadius: 4, background: editing ? color : '#101216', color: '#fff', cursor: 'pointer' }}>{saving ? 'Saving…' : editing ? 'Save' : 'Set'}</button>
       {editing && <button type="button" onClick={end} style={{ padding: '5px 8px', border: '1px solid #444', borderRadius: 4, background: '#101216', color: '#fff', cursor: 'pointer' }}>Cancel</button>}
-      <span title="Only people inside this area are tracked when enabled. Select Set, drag the five red points in Live View, then Save." aria-label="Tracking area information">ⓘ</span>
+      <span title="Only people inside this area are tracked when enabled. Select Set, drag the five red points in Live View, then Save." aria-label="Tracking area information" style={{ width: 16, height: 24, flex: '0 0 16px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>ⓘ</span>
     </div>
     {error && <div role="alert" style={{ color: '#ff7777', fontSize: 12 }}>{error}</div>}
     {editing && panel && createPortal(<>

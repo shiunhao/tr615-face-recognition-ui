@@ -3988,7 +3988,7 @@ export default function App({ prototypeVersion = "v2" }) {
         </button>
         {versionMenuOpen && (
           <div id="aver-version-switcher-menu" role="listbox" aria-label="Prototype versions" style={{ position: "absolute", top: 38, left: 0, width: "100%", boxSizing: "border-box", padding: 4, borderRadius: 6, border: `1px solid ${T.line2}`, background: T.panel2, boxShadow: "0 10px 28px rgba(0,0,0,0.46)", overflow: "hidden" }}>
-            {["V1", "V2", "V3"].map(version => { const selected = version.toLowerCase() === prototypeVersion; return <button key={version} id={`aver-version-option-${version.toLowerCase()}`} type="button" role="option" aria-selected={selected} onClick={() => { if (selected) setVersionMenuOpen(false); else { const url = new URL(window.location.href); url.searchParams.set("version", version.toLowerCase()); window.location.assign(url.href); } }} style={{ width: "100%", minHeight: 32, padding: "6px 9px", border: "none", borderRadius: 4, background: selected ? "rgba(30,155,240,0.16)" : "transparent", color: selected ? "#fff" : T.dim, fontFamily: fUI, fontSize: 11.5, textAlign: "left", cursor: "pointer" }}>{version}</button>; })}
+            {["V1", "V2", "V3", "V4"].map(version => { const selected = version.toLowerCase() === prototypeVersion; return <button key={version} id={`aver-version-option-${version.toLowerCase()}`} type="button" role="option" aria-selected={selected} onClick={() => { if (selected) setVersionMenuOpen(false); else { const url = new URL(window.location.href); url.searchParams.set("version", version.toLowerCase()); window.location.assign(url.href); } }} style={{ width: "100%", minHeight: 32, padding: "6px 9px", border: "none", borderRadius: 4, background: selected ? "rgba(30,155,240,0.16)" : "transparent", color: selected ? "#fff" : T.dim, fontFamily: fUI, fontSize: 11.5, textAlign: "left", cursor: "pointer" }}>{version}</button>; })}
           </div>
         )}
       </div>
@@ -5721,7 +5721,7 @@ export default function App({ prototypeVersion = "v2" }) {
                   </div>
 
                   {/* 分頁內容 */}
-                  <div id="aver-trk-tab-content" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 8, boxSizing: "border-box" }}>
+                  <div id="aver-trk-tab-content" className={trk.tab === "audience" ? "_audience" : undefined} style={{ flex: 1, minHeight: 0, overflowY: trk.tab === "audience" ? "hidden" : "auto", padding: 8, boxSizing: "border-box" }}>
                 {trk.tab === "presenter" ? (
 
                   <div id="aver-presenter-panel" style={{ display: "flex", flexDirection: "column", gap: 8, height: "100%", minHeight: 0 }}>
@@ -5735,7 +5735,7 @@ export default function App({ prototypeVersion = "v2" }) {
                           <div role="group" aria-label={label} style={{ display: "flex", gap: 4, padding: 3, background: "#101216", borderRadius: 7 }}>
                             {options.map(([value, name]) => <button key={name} type="button" aria-pressed={trk[key] === value} onClick={() => updTrk(key, value)} style={{ padding: "6px 12px", borderRadius: 5, border: "none", background: trk[key] === value ? T.blue : "transparent", color: trk[key] === value ? "#fff" : T.dim, fontFamily: fUI, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{name}</button>)}
                           </div>
-                          {key === "microphoneTracking" && <button type="button" aria-label="Tracking Target information" onClick={() => microphoneInfoRef.current?.showModal()} style={{ padding: 0, border: "none", background: "transparent", color: T.dim, cursor: "pointer", fontSize: 14 }}>ⓘ</button>}
+                          {key === "microphoneTracking" && <button type="button" aria-label="Handheld Microphone Tracking information" onClick={() => microphoneInfoRef.current?.showModal()} style={{ padding: 0, border: "none", background: "transparent", color: T.dim, cursor: "pointer", fontSize: 14 }}>ⓘ</button>}
                         </div>
                       ))}
                                                 <TrackingTargetHelp dialogRef={microphoneInfoRef} theme={T} />

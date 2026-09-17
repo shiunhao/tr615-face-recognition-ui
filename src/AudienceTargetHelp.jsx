@@ -31,27 +31,24 @@ function AudienceScene({ type }) {
 export default function AudienceTargetHelp({ dialogRef, theme: T }) {
   const close = () => dialogRef.current?.close();
   const items = [
-    { type: 'microphone', title: 'Microphone Holder', text: 'Track audience members holding a microphone.' },
-    { type: 'pose', title: 'Pose (Standing)', text: 'Track a person who stands up. When they sit down, return to the Tracking Point.' },
-    { type: 'hand', title: 'Hand Raising', text: 'Track audience members who raise a hand.' },
+    { type: 'microphone', title: 'Handheld Microphone Tracking', text: 'Audience Mode is designed specifically for speakers in the audience, unlike Presenter Mode, which tracks speakers on stage. It uses Handheld Microphone Tracking to detect and follow audience members holding a microphone. Use this tab to configure the tracking area, framing, and tracking behavior.' },
   ];
 
-  return <dialog ref={dialogRef} aria-labelledby="audience-target-help-title" onClick={event => { if (event.target === event.currentTarget) close(); }} style={{ width: 'min(660px, calc(100vw - 48px))', maxHeight: 'calc(100vh - 48px)', overflowY: 'auto', boxSizing: 'border-box', padding: 24, border: `1px solid ${T.line2}`, borderRadius: 10, background: T.panel, color: T.text, fontSize: 13, lineHeight: 1.6 }}>
+  return <dialog ref={dialogRef} aria-labelledby="audience-target-help-title" onClick={event => { if (event.target === event.currentTarget) close(); }} style={{ width: 'min(820px, calc(100vw - 48px))', maxHeight: 'calc(100vh - 48px)', overflowY: 'auto', boxSizing: 'border-box', padding: 24, border: `1px solid ${T.line2}`, borderRadius: 10, background: T.panel, color: T.text, fontSize: 13, lineHeight: 1.6 }}>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
-      <h2 id="audience-target-help-title" style={{ margin: 0, fontSize: 17 }}>Audience Tracking Targets</h2>
+      <h2 id="audience-target-help-title" style={{ margin: 0, fontSize: 17 }}>About Audience Mode</h2>
       <button type="button" aria-label="Close audience tracking help" onClick={close} style={{ border: 'none', background: 'transparent', color: T.text, fontSize: 22, cursor: 'pointer' }}>×</button>
     </div>
-    <p style={{ margin: '8px 0 18px', color: T.dim }}>Select one or more target types. People matching any selected type are eligible for tracking.</p>
-    <div>
-      {items.map((item, index) => <div key={item.type} className="audience-help-row" style={{ display: 'grid', gridTemplateColumns: '180px minmax(0, 1fr)', gap: 20, alignItems: 'center', padding: '18px 0', borderTop: `1px solid ${T.line}` }}>
-        <AudienceScene type={item.type} />
-        <div style={{ borderLeft: `1px solid ${T.line2}`, paddingLeft: 16, minHeight: 96, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+    <div style={{ marginTop: 18 }}>
+      {items.map((item, index) => <div key={item.type} className="audience-help-row" style={{ display: 'grid', gridTemplateColumns: '360px minmax(0, 1fr)', gap: 24, alignItems: 'center', padding: '18px 0', borderTop: `1px solid ${T.line}` }}>
+        <img src="audience-microphone-tracking-v3.png" alt="Audience member holding a handheld microphone inside a red tracking frame" style={{ width: '100%', aspectRatio: '16 / 9', objectFit: 'cover', objectPosition: 'center', display: 'block', borderRadius: 7, background: '#111b24' }} />
+        <div style={{ borderLeft: `1px solid ${T.line2}`, paddingLeft: 16, minHeight: 0, alignSelf: 'stretch', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
           <h3 style={{ margin: '0 0 4px', fontSize: 14 }}>{item.title}</h3>
           <p style={{ margin: 0 }}>{item.text}</p>
         </div>
       </div>)}
     </div>
-    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 2 }}><button type="button" onClick={close} style={{ background: T.blue, border: 'none', borderRadius: 5, padding: '7px 16px', color: '#fff', fontSize: 13, cursor: 'pointer' }}>Close</button></div>
-    <style>{`@media(max-width:520px){.audience-help-row{grid-template-columns:1fr !important}.audience-help-row svg{max-width:180px}.audience-help-row>div{border-left:0 !important;padding-left:0 !important}}`}</style>
+    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 2 }}><button type="button" onClick={close} style={{ background: '#101216', border: `1px solid ${T.line2}`, borderRadius: 5, padding: '7px 16px', color: T.text, fontSize: 13, cursor: 'pointer' }}>Close</button></div>
+    <style>{`@media(max-width:520px){.audience-help-row{grid-template-columns:1fr !important}.audience-help-row img{max-width:180px}.audience-help-row>div{border-left:0 !important;padding-left:0 !important}}`}</style>
   </dialog>;
 }

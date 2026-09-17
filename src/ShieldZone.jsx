@@ -108,8 +108,8 @@ export default function ShieldZone({ enabled, onToggle, saved = emptyZones, onSa
   const zoneStyle = zone => ({ position: 'absolute', left: `${zone.x}%`, top: `${zone.y}%`, width: `${zone.width}%`, height: `${zone.height}%`, boxSizing: 'border-box', background: 'rgba(0,0,0,.48)', backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)', border: `1px solid ${editing && selected === zone.id ? T.blue : 'rgba(255,255,255,.65)'}`, color: '#fff' });
   return <>
     <div aria-label="Shield Zone controls" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, fontSize: 13, width: '100%' }}>
-      <label style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, cursor: 'pointer', whiteSpace: 'nowrap' }}><input type="checkbox" checked={enabled} onChange={event => { end(); onToggle(event.target.checked); }} style={{ accentColor: T.blue }} />Shield Zone</label>
-      <button type="button" aria-label="Set Shield Zone" onClick={start} style={{ ...button, background: T.blue, color: '#fff' }}>Set</button>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, cursor: 'pointer', whiteSpace: 'nowrap' }}><input className="tracking-checkbox" type="checkbox" checked={enabled} onChange={event => { end(); onToggle(event.target.checked); }} />Shield Zone</label>
+      <button type="button" aria-label="Set Shield Zone" onClick={start} style={button}>Set</button>
       <button type="button" aria-label="Clear Shield Zones" onClick={clear} style={button}>Clear</button>
     </div>
     {!editing && notice && <div role="status" style={{ fontSize: 12, color: T.dim }}>{notice}</div>}

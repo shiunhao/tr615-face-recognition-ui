@@ -49,6 +49,50 @@
   margin: 3px;
   flex-shrink: 0;
 }
+.tracking-checkbox,
+.tracking-checkbox-visual {
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  flex: 0 0 16px;
+  border: 1.5px solid #3a4048;
+  border-radius: 3px;
+  background: transparent;
+  color: #fff;
+  font: 600 11px/1 "Segoe UI", system-ui, sans-serif;
+}
+.tracking-checkbox {
+  appearance: none;
+  position: relative;
+  cursor: pointer;
+}
+.tracking-checkbox-visual {
+  display: inline-grid;
+  place-items: center;
+}
+.tracking-checkbox:checked,
+.tracking-checkbox-visual.is-checked {
+  border-color: #1e9bf0;
+  background: #1e9bf0;
+}
+.tracking-checkbox:checked::after {
+  content: "✓";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font: 600 11px/1 "Segoe UI", system-ui, sans-serif;
+}
+.tracking-checkbox:focus-visible {
+  outline: 2px solid rgba(30, 155, 240, .55);
+  outline-offset: 2px;
+}
+.tracking-checkbox:disabled {
+  cursor: default;
+  opacity: .72;
+}
 #aver-presenter-panel,
 #aver-tracking-audience-panel {
   --tracking-text-size: 13px;

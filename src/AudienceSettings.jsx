@@ -1,10 +1,12 @@
 import AudienceModeBar from "./AudienceModeBar";
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import EffectiveTrackingArea from './EffectiveTrackingArea';
 import ShieldZone from './ShieldZone';
 import FramingSelect from './FramingSelect';
+import AudienceTargetHelp from './AudienceTargetHelp';
 
 export default function AudienceSettings({ settings, onChange, theme: T, visualTargets = false }) {
+  const info = useRef(null);
   const [notice, setNotice] = useState('');
   const update = (key, value) => onChange(previous => ({ ...previous, [key]: value }));
   const button = { padding: '6px 12px', border: `1px solid ${T.line2}`, borderRadius: 4, background: '#101216', color: T.text, font: 'inherit', cursor: 'pointer' };
@@ -19,6 +21,7 @@ export default function AudienceSettings({ settings, onChange, theme: T, visualT
         <div style={{ borderTop: `1px solid ${T.line}`, paddingTop: 10 }}>
           <ShieldZone enabled={settings.shieldZone} onToggle={value => update('shieldZone', value)} saved={settings.shieldZones} onSave={value => update('shieldZones', value)} theme={T} />
         </div>
+        <button type="button" onClick={() => info.current?.showModal()} style={{ alignSelf: 'flex-start', border: 'none', padding: '4px 2px', background: 'transparent', color: T.dim, font: 'inherit', fontSize: 12.5, cursor: 'pointer' }}>ⓘ About Audience Mode</button>
       </div>
     </section>
     <section className="audience-card" aria-label="Audience Framing">
@@ -42,6 +45,7 @@ export default function AudienceSettings({ settings, onChange, theme: T, visualT
       </div>
     </section>
     </div>
+    <AudienceTargetHelp dialogRef={info} theme={T} />
     <style>{`.audience-card { display:flex; flex-direction:column; min-width:0; min-height:0; overflow:hidden; border:1px solid ${T.line}; border-radius:6px; background:rgba(0,0,0,.12); } .audience-card h3 { flex-shrink:0; margin:0; padding:8px 10px; border-bottom:1px solid ${T.line}; font-size:12.5px; font-weight:600; color:${T.dim}; } .audience-card-body { display:flex; flex-direction:column; gap:10px; min-height:0; padding:10px; overflow-y:auto; scrollbar-width:thin; } .audience-row { display:grid; grid-template-columns:96px minmax(0,1fr); gap:8px; align-items:center; min-height:28px; font-size:12px; }`}</style>
   </div>;
 }
