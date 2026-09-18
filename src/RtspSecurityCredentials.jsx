@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 const ALLOWED_CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!$%`()+,-./<=>?@[\\]^_{}~";
-const ALLOWED_CHARACTERS_LABEL = '0–9, a–z, A–Z, and !$%`()+,-./<=>?@[\\]^_{}~';
+const CREDENTIALS_NOTE = 'Note: Username should be 1 to 32 characters. Password should be 8 to 32 characters with at least including alphabetical capital letters, lower case letters, and numbers and cannot be your username. Both username and password can contain numbers (0~9), letters (a~z, A~Z), and special characters (!$%`()+,-./<=>?@[\\]^_{}~).';
 
 function validateCredentials({ username, password }) {
   const errors = [];
@@ -22,7 +22,6 @@ function validateCredentials({ username, password }) {
 export default function RtspSecurityCredentials({ enabled, credentials, onSave, theme: T }) {
   const [draft, setDraft] = useState(credentials);
   const [savedNotice, setSavedNotice] = useState(false);
-  const [validationErrors, setValidationErrors] = useState([]);
   const validationDialog = useRef(null);
 
   useEffect(() => {
@@ -34,7 +33,6 @@ export default function RtspSecurityCredentials({ enabled, credentials, onSave, 
       setDraft(credentials);
       setSavedNotice(false);
       validationDialog.current?.close();
-      setValidationErrors([]);
     }
   }, [enabled, credentials.username, credentials.password]);
 
@@ -47,7 +45,6 @@ export default function RtspSecurityCredentials({ enabled, credentials, onSave, 
   const save = () => {
     const errors = validateCredentials(draft);
     if (errors.length) {
-      setValidationErrors(errors);
       validationDialog.current?.showModal();
       return;
     }
@@ -75,16 +72,12 @@ export default function RtspSecurityCredentials({ enabled, credentials, onSave, 
       <button type="button" disabled={!canSave} onClick={save} style={{ minHeight: 28, padding: '4px 14px', border: `1px solid ${canSave ? T.blue : T.line2}`, borderRadius: 4, background: canSave ? T.blue : '#0d0f11', color: canSave ? '#fff' : T.faint, fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, cursor: canSave ? 'pointer' : 'not-allowed' }}>Save</button>
     </div>
   </div>
-  <dialog ref={validationDialog} aria-labelledby="rtsp-validation-title" aria-describedby="rtsp-validation-note" onClose={() => setValidationErrors([])} style={{ width: 'min(520px, calc(100vw - 48px))', boxSizing: 'border-box', padding: 0, border: `1px solid ${T.line2}`, borderRadius: 8, background: T.panel, color: T.text, fontFamily: 'inherit', boxShadow: '0 20px 60px rgba(0,0,0,.58)' }}>
+  <dialog ref={validationDialog} aria-labelledby="rtsp-validation-title" aria-describedby="rtsp-validation-note" style={{ width: 'min(520px, calc(100vw - 48px))', boxSizing: 'border-box', padding: 0, border: `1px solid ${T.line2}`, borderRadius: 8, background: T.panel, color: T.text, fontFamily: 'inherit', boxShadow: '0 20px 60px rgba(0,0,0,.58)' }}>
     <div style={{ padding: '16px 18px 12px', borderBottom: `1px solid ${T.line}` }}>
-      <h2 id="rtsp-validation-title" style={{ margin: 0, fontSize: 16 }}>Invalid RTSP Credentials</h2>
+      <h2 id="rtsp-validation-title" style={{ margin: 0, fontSize: 16 }}>RTSP Security</h2>
     </div>
     <div style={{ padding: '14px 18px', fontSize: 13, lineHeight: 1.55 }}>
-      <p style={{ margin: '0 0 8px', color: T.dim }}>Correct the following before saving:</p>
-      <ul style={{ margin: '0 0 12px', paddingLeft: 20 }}>
-        {validationErrors.map(error => <li key={error}>{error}</li>)}
-      </ul>
-      <p id="rtsp-validation-note" style={{ margin: 0, color: T.dim }}><strong style={{ color: T.text }}>Allowed characters:</strong> {ALLOWED_CHARACTERS_LABEL}</p>
+      <p id="rtsp-validation-note" style={{ margin: 0 }}>{CREDENTIALS_NOTE}</p>
     </div>
     <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '10px 18px 14px', borderTop: `1px solid ${T.line}` }}>
       <button type="button" autoFocus onClick={() => validationDialog.current?.close()} style={{ minWidth: 72, minHeight: 30, padding: '4px 16px', border: `1px solid ${T.line2}`, borderRadius: 4, background: '#101216', color: T.text, fontFamily: 'inherit', fontSize: 12.5, cursor: 'pointer' }}>OK</button>
