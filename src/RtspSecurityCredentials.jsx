@@ -41,7 +41,8 @@ export default function RtspSecurityCredentials({ enabled, credentials, onSave, 
     setSavedNotice(false);
   };
   const dirty = draft.username !== credentials.username || draft.password !== credentials.password;
-  const canSave = enabled && dirty;
+  const hasRequiredInput = draft.username.length > 0 && draft.password.length > 0;
+  const canSave = enabled && dirty && hasRequiredInput;
   const save = () => {
     const errors = validateCredentials(draft);
     if (errors.length) {
