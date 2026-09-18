@@ -4089,7 +4089,7 @@ export default function App({ prototypeVersion = 'v1' }) {
       </div>
 
       {/* 主工作區 (Main Stage Panel) */}
-      <div id="aver-main-stage" style={{ position: "relative", flex: 1, padding: "16px 24px", minWidth: 0, background: T.page, overflow: "hidden", height: "100vh", display: "flex", flexDirection: "column", boxSizing: "border-box" }}>
+      <div id="aver-main-stage" style={{ position: "relative", flex: 1, padding: "16px 24px", minWidth: 0, background: "#090A0C", overflow: "hidden", height: "100vh", display: "flex", flexDirection: "column", boxSizing: "border-box" }}>
         <div key={activeMenu} className="aver-page-transition" style={{ width: "100%", height: "100%", minHeight: 0 }}>
         {activeMenu === "paint" ? (
           <div id="aver-content-wrapper" style={{ display: "flex", flexDirection: "column", gap: SP[2], width: "min(calc(75vw - 40px), 100%)", marginLeft: "max(0px, calc(16.6667vw - 225.33px))", height: "100%", minHeight: 0 }}>
