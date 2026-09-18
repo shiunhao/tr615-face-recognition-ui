@@ -69,7 +69,7 @@ export default function RtspSecurityCredentials({ enabled, credentials, onSave, 
     </div>
     <div style={{ gridColumn: '1 / -1', minHeight: 28, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 }}>
       <span role="status" aria-live="polite" style={{ color: '#67d7a5', fontSize: 11.5 }}>{savedNotice ? 'RTSP credentials saved.' : ''}</span>
-      <button type="button" disabled={!canSave} onClick={save} style={{ minHeight: 28, padding: '4px 14px', border: `1px solid ${canSave ? T.blue : T.line2}`, borderRadius: 4, background: canSave ? T.blue : '#0d0f11', color: canSave ? '#fff' : T.faint, fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, cursor: canSave ? 'pointer' : 'not-allowed' }}>Save</button>
+      <button type="button" disabled={!canSave} onClick={save} style={{ minHeight: 28, padding: '4px 14px', border: `1px solid ${T.line2}`, borderRadius: 4, background: canSave ? T.panel2 : '#0d0f11', color: canSave ? T.text : T.faint, fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, cursor: canSave ? 'pointer' : 'not-allowed' }}>Save</button>
     </div>
   </div>
   <dialog ref={validationDialog} aria-labelledby="rtsp-validation-title" aria-describedby="rtsp-validation-note" style={{ width: 'min(520px, calc(100vw - 48px))', boxSizing: 'border-box', padding: 0, border: `1px solid ${T.line2}`, borderRadius: 8, background: T.panel, color: T.text, fontFamily: 'inherit', boxShadow: '0 20px 60px rgba(0,0,0,.58)' }}>
