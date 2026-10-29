@@ -1,4 +1,5 @@
 import TrackingTargetHelp from "./TrackingTargetHelp";
+import GestureSettings from "./GestureSettings";
 import "./tracking-typography.css";
 import AudienceSettings from "./AudienceSettings";
 import FramingSelect from "./FramingSelect";
@@ -626,9 +627,14 @@ function CamCheck({ label, checked, onChange, disabled, id }) {
 }
 
 // 單選 (Tracking Control 用)
-function CamRadio({ label, checked, onChange, id }) {
+function CamRadio({ label, checked, onChange, id, disabled = false }) {
   return (
-    <label id={id} onClick={onChange} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13, color: checked ? T.text : T.dim, userSelect: "none" }}>
+    <label id={id} role="radio" aria-checked={checked} aria-disabled={disabled || undefined} tabIndex={disabled ? -1 : 0} onClick={disabled ? undefined : onChange} onKeyDown={(event) => {
+      if (!disabled && (event.key === "Enter" || event.key === " ")) {
+        event.preventDefault();
+        onChange();
+      }
+    }} style={{ display: "flex", alignItems: "center", gap: 6, cursor: disabled ? "not-allowed" : "pointer", fontSize: 13, color: checked ? T.text : T.dim, opacity: disabled ? 0.45 : 1, userSelect: "none" }}>
       <span style={{ width: 13, height: 13, borderRadius: "50%", border: `1.5px solid ${checked ? T.blue : T.line2}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
         {checked && <span style={{ width: 6, height: 6, borderRadius: "50%", background: T.blue }} />}
       </span>
@@ -1258,6 +1264,7 @@ export default function App({ prototypeVersion = "v2" }) {
   const [savedNetworkAddress, setSavedNetworkAddress] = useState({ ip: "192.168.1.168", netmask: "255.255.255.0", gateway: "192.168.1.254", dns: "8.8.8.8" });
   const updNet = (k, v) => setNet((p) => ({ ...p, [k]: v }));
   // Tracking Settings 頁面狀態
+  const [trackMode, setTrackMode] = useState("hybrid");
   const microphoneInfoRef = useRef(null);
   const presenterHelpRef = useRef(null);
   const [presenterHelp, setPresenterHelp] = useState({ title: "", text: "" });
@@ -1272,15 +1279,26 @@ export default function App({ prototypeVersion = "v2" }) {
     zoneId: "Zone 1", zoneResponse: "Auto", zoneTransition: 5, zoneEnabled: true, zoneTrackingPoint: "Preset 6",
     hybridPriority: "Presenter", hybridFallback: "Zone 1", hybridHoldTime: 5,
     framingMode: "Auto Framing", framingSize: "Medium", framingSpeed: 5, groupFraming: true,
-    gestureEnabled: false, gestureTimeout: 5, gestureFeedback: true,
+    gestureMode: "off",
     faceEnrollment: false, faceSelection: "Auto", faceAction: "Track selected face",
     faceCaptureState: "idle", faceBatchResult: null, enrolledFaces: [],
   });
-  const updTrk = (k, v) => setTrk((p) => ({
-    ...p, [k]: v,
-    ...(k === "microphoneTracking" && v ? { multiPresenter: "off" } : {}),
-    ...(k === "multiPresenter" && v !== "off" ? { microphoneTracking: false } : {}),
-  }));
+  const microphoneTrackingActive = trk.microphoneTracking || trackMode === "audience";
+  const updTrk = (k, v) => {
+    if (microphoneTrackingActive && k === "faceEnrollment" && v) return;
+    if (microphoneTrackingActive && k === "gestureMode") return;
+    setTrk((p) => ({
+      ...p, [k]: v,
+      ...(k === "microphoneTracking" && v ? { faceEnrollment: false, gestureMode: "off" } : {}),
+      ...(k === "multiPresenter" && v !== "off" ? { microphoneTracking: false } : {}),
+    }));
+  };
+  const changeTrackingMode = (mode) => {
+    setTrackMode(mode);
+    if (mode === "audience") {
+      setTrk(previous => ({ ...previous, faceEnrollment: false, gestureMode: "off" }));
+    }
+  };
   const [draggedFaceId, setDraggedFaceId] = useState(null);
   const [faceDragOverlay, setFaceDragOverlay] = useState(null);
   const [faceDeleteTarget, setFaceDeleteTarget] = useState(null);
@@ -1563,6 +1581,10 @@ export default function App({ prototypeVersion = "v2" }) {
       };
     });
   };
+  useEffect(() => {
+    if (!microphoneTrackingActive) return;
+    setTrk(previous => ({ ...previous, faceEnrollment: false, gestureMode: "off" }));
+  }, [microphoneTrackingActive]);
   useEffect(() => () => {
     if (faceEnrollTimerRef.current) clearTimeout(faceEnrollTimerRef.current);
     clearFaceSelectTimers();
@@ -1767,7 +1789,6 @@ export default function App({ prototypeVersion = "v2" }) {
   };
   // Tracking Control (側邊欄)
   const [trackOn, setTrackOn] = useState(true);
-  const [trackMode, setTrackMode] = useState("hybrid");
 
   // Multi-Matrix 樣式狀態："wheel" (Radar Wheel), "eq" (色彩等化器)
 
@@ -4041,18 +4062,19 @@ export default function App({ prototypeVersion = "v2" }) {
               <span style={{ fontSize: 13, color: T.dim, width: 60, flexShrink: 0, paddingTop: 1 }}>Mode</span>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {[["presenter", "Presenter"], ["audience", "Audience"], ["zone", "Zone"], ["hybrid", "Hybrid"], ["framing", "Framing"]].map(([id, lb]) => (
-                  <CamRadio key={id} label={lb} checked={trackMode === id} onChange={() => setTrackMode(id)} />
+                  <CamRadio key={id} label={lb} checked={trackMode === id} onChange={() => changeTrackingMode(id)} />
                 ))}
               </div>
             </div>
-            <div id="aver-tracking-face-enrollment-toggle" style={{ display: "flex", alignItems: "flex-start", gap: 0 }}>
+            <div id="aver-tracking-face-enrollment-toggle" role="group" aria-label="Face Enrollment" aria-disabled={microphoneTrackingActive || undefined} style={{ display: "flex", alignItems: "flex-start", gap: 0 }}>
               <span style={{ fontSize: 13, lineHeight: 1.25, color: T.dim, width: 78, flexShrink: 0 }}>Face<br />Enrollment</span>
               <div style={{ display: "flex", gap: 24 }}>
                 <span style={{ width: 44 }}>
                   <CamRadio
                     id="aver-tracking-face-enrollment-on"
                     label="On"
-                    checked={trk.faceEnrollment}
+                    checked={trk.faceEnrollment && !microphoneTrackingActive}
+                    disabled={microphoneTrackingActive}
                     onChange={() => {
                       if (trk.enrolledFaces.length === 0) {
                         setFaceEnrollmentNoDataDialogOpen(true);
@@ -4062,7 +4084,7 @@ export default function App({ prototypeVersion = "v2" }) {
                     }}
                   />
                 </span>
-                <CamRadio id="aver-tracking-face-enrollment-off" label="Off" checked={!trk.faceEnrollment} onChange={() => updTrk("faceEnrollment", false)} />
+                <CamRadio id="aver-tracking-face-enrollment-off" label="Off" checked={microphoneTrackingActive || !trk.faceEnrollment} disabled={microphoneTrackingActive} onChange={() => updTrk("faceEnrollment", false)} />
               </div>
             </div>
             <button style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "9px 0", fontSize: 13, cursor: "pointer", borderRadius: 6, border: `1px solid ${T.line2}`, background: T.panel2, color: T.text, fontFamily: fUI, marginTop: 2 }}>
@@ -5824,21 +5846,7 @@ export default function App({ prototypeVersion = "v2" }) {
                     <TrkSlider label="Framing Speed" stateKey="framingSpeed" min={1} max={10} />
                   </div>
                 ) : trk.tab === "gesture" ? (
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: SP[3], alignItems: "start" }}>
-                    <div style={sec}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={secTitle}>Gesture Control</span>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: "#fff", background: T.amber, borderRadius: 3, padding: "2px 6px" }}>Beta</span>
-                      </div>
-                      <TrkCheck stateKey="gestureEnabled" label="Enable gesture commands" />
-                      <div style={desc}>Allow supported hand gestures to start or stop tracking without using the web interface.</div>
-                    </div>
-                    <TrkSlider label="Gesture Confirmation Time" stateKey="gestureTimeout" min={2} max={10} />
-                    <div style={sec}>
-                      <TrkCheck stateKey="gestureFeedback" label="Show recognition feedback" disabled={!trk.gestureEnabled} />
-                      <div style={desc}>A temporary status indicator appears in Live View when a gesture is recognized.</div>
-                    </div>
-                  </div>
+                  <GestureSettings value={trk.gestureMode} onChange={value => updTrk("gestureMode", value)} disabled={microphoneTrackingActive} theme={T} />
                 ) : (
                   <>
                   <div id="aver-face-enrollment" style={{ height: "100%", minHeight: 0, display: "flex" }}>
