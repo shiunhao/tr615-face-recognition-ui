@@ -1287,9 +1287,10 @@ export default function App({ prototypeVersion = "v2" }) {
   const updTrk = (k, v) => {
     if (microphoneTrackingActive && k === "faceEnrollment" && v) return;
     if (microphoneTrackingActive && k === "gestureMode") return;
+    if (trk.microphoneTracking && k === "multiPresenterTracking" && v) return;
     setTrk((p) => ({
       ...p, [k]: v,
-      ...(k === "microphoneTracking" && v ? { faceEnrollment: false, gestureMode: "off" } : {}),
+      ...(k === "microphoneTracking" && v ? { faceEnrollment: false, gestureMode: "off", multiPresenterTracking: false } : {}),
       ...(k === "multiPresenter" && v !== "off" ? { microphoneTracking: false } : {}),
     }));
   };
@@ -5752,10 +5753,10 @@ export default function App({ prototypeVersion = "v2" }) {
                         { key: "microphoneTracking", label: "Tracking Target", options: [[false, "Presenter"], [true, "Microphone Holder"]] },
                         { key: "multiPresenterTracking", label: "Presenter Mode", options: [[false, "Single Person"], [true, "Multiple People"]] },
                       ].map(({ key, label, options }) => (
-                        <div key={key} style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: 8, position: "relative", flex: "0 0 auto", ...(key === "multiPresenterTracking" ? { borderLeft: `1px solid ${T.line2}`, paddingLeft: 18 } : {}) }}>
+                        <div key={key} style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: 8, position: "relative", flex: "0 0 auto", ...(key === "multiPresenterTracking" ? { borderLeft: `1px solid ${T.line2}`, paddingLeft: 18, opacity: trk.microphoneTracking ? 0.5 : 1 } : {}) }}>
                           <span className="tracking-mode-title" style={{ ...secTitle, margin: 0 }}>{label}</span>
-                          <div role="group" aria-label={label} style={{ display: "flex", gap: 4, padding: 3, background: "#101216", borderRadius: 7 }}>
-                            {options.map(([value, name]) => <button key={name} type="button" aria-pressed={trk[key] === value} onClick={() => updTrk(key, value)} style={{ padding: "6px 12px", borderRadius: 5, border: "none", background: trk[key] === value ? T.blue : "transparent", color: trk[key] === value ? "#fff" : T.dim, fontFamily: fUI, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{name}</button>)}
+                          <div role="group" aria-label={label} aria-disabled={key === "multiPresenterTracking" && trk.microphoneTracking || undefined} style={{ display: "flex", gap: 4, padding: 3, background: "#101216", borderRadius: 7 }}>
+                            {options.map(([value, name]) => <button key={name} type="button" aria-pressed={trk[key] === value} disabled={key === "multiPresenterTracking" && trk.microphoneTracking} onClick={() => updTrk(key, value)} style={{ padding: "6px 12px", borderRadius: 5, border: "none", background: trk[key] === value ? T.blue : "transparent", color: trk[key] === value ? "#fff" : T.dim, fontFamily: fUI, fontSize: 13, fontWeight: 600, cursor: key === "multiPresenterTracking" && trk.microphoneTracking ? "not-allowed" : "pointer" }}>{name}</button>)}
                           </div>
                           {key === "microphoneTracking" && <button type="button" aria-label="Handheld Microphone Tracking information" onClick={() => microphoneInfoRef.current?.showModal()} style={{ padding: 0, border: "none", background: "transparent", color: T.dim, cursor: "pointer", fontSize: 14 }}>ⓘ</button>}
                         </div>

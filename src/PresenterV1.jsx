@@ -1286,9 +1286,10 @@ export default function App({ prototypeVersion = 'v1' }) {
   const updTrk = (k, v) => {
     if (microphoneTrackingActive && k === "faceEnrollment" && v) return;
     if (microphoneTrackingActive && k === "gestureMode") return;
+    if (trk.microphoneTracking && k === "multiPresenterTracking" && v) return;
     setTrk((p) => ({
       ...p, [k]: v,
-      ...(k === "microphoneTracking" && v ? { faceEnrollment: false, gestureMode: "off" } : {}),
+      ...(k === "microphoneTracking" && v ? { faceEnrollment: false, gestureMode: "off", multiPresenterTracking: false } : {}),
       ...(k === "multiPresenter" && v !== "off" ? { microphoneTracking: false } : {}),
     }));
   };
@@ -5786,7 +5787,7 @@ export default function App({ prototypeVersion = 'v1' }) {
                         </div>
                       </div>
                       <div style={{ ...sec, gridColumn: 1, gridRow: 4, justifyContent: "center" }}>
-                        <TrkCheck stateKey="multiPresenterTracking" label="Multi-Presenter Tracking" badge="Beta" />
+                        <TrkCheck stateKey="multiPresenterTracking" label="Multi-Presenter Tracking" badge="Beta" disabled={trk.microphoneTracking} />
                       </div>
                       <div style={{ ...sec, gridColumn: 1, gridRow: "5 / 7", justifyContent: "center" }}>
                         <EffectiveTrackingArea saved={savedTrackingArea} onSave={setSavedTrackingArea} enabled={trk.effectiveArea} onToggle={() => updTrk("effectiveArea", !trk.effectiveArea)} color={T.blue} />

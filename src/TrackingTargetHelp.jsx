@@ -30,7 +30,7 @@ export default function TrackingTargetHelp({ dialogRef, theme: T }) {
       <img src="presenter-handheld-microphone-tracking-v2.png" alt="Presenter holding a handheld microphone inside a red tracking frame" style={{ width: '100%', aspectRatio: '16 / 9', objectFit: 'cover', objectPosition: 'center', display: 'block', background: '#111b24', borderRadius: 7 }} />
       <div style={{ borderLeft: `1px solid ${T.line2}`, paddingLeft: 16, minHeight: 0, alignSelf: 'stretch', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
         <h3 style={{ margin: '0 0 6px', fontSize: 14 }}>Handheld Microphone Tracking</h3>
-        <p style={{ margin: 0 }}>Presenter Mode is designed specifically for speakers on stage, unlike Audience Mode, which tracks speakers in the audience. It uses Handheld Microphone Tracking to detect and follow a presenter holding a microphone, keeping the active speaker properly framed. Use this tab to configure the tracking area, framing, and tracking behavior.</p>
+        <p style={{ margin: 0 }}>Presenter Mode tracks one on-stage speaker using Handheld Microphone Tracking. To switch speakers, select Click Track, then click another microphone holder in the live view. Configure the tracking area, framing, and tracking behavior in this tab.</p>
       </div>
     </div>
 

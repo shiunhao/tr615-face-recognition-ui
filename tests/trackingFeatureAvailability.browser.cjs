@@ -95,6 +95,24 @@ const os = require('node:os');
           await panel.getByRole('group', { name: 'Tracking Target', exact: true }).getByRole('button', { name: enabled ? 'Microphone Holder' : 'Presenter', exact: true }).click();
         }
       }
+      function multiPresenterTrackingControl() {
+        return version === 'v4'
+          ? panel.getByRole('button', { name: /Multi-Presenter Tracking/ })
+          : panel.getByRole('group', { name: 'Presenter Mode', exact: true }).getByRole('button', { name: 'Multiple People', exact: true });
+      }
+      async function assertMultiPresenterTracking(checked, disabled = false) {
+        const control = multiPresenterTrackingControl();
+        assert.equal(await control.isDisabled(), disabled, `${version}: Multi-Presenter Tracking availability`);
+        const actualChecked = version === 'v4'
+          ? (await control.innerText()).includes('✓')
+          : (await control.getAttribute('aria-pressed')) === 'true';
+        assert.equal(actualChecked, checked, `${version}: Multi-Presenter Tracking selection`);
+        if (version === 'v2') {
+          const singlePerson = panel.getByRole('group', { name: 'Presenter Mode', exact: true }).getByRole('button', { name: 'Single Person', exact: true });
+          assert.equal(await singlePerson.getAttribute('aria-pressed'), String(!checked));
+          assert.equal(await singlePerson.isDisabled(), disabled);
+        }
+      }
       async function beginFaceDetection() {
         const resume = page.locator('#aver-face-resume-live-button');
         if (await resume.count()) await resume.click();
@@ -139,6 +157,33 @@ const os = require('node:os');
         assert.equal(await page.locator(`[data-face-id="${newFaceId}"]`).count(), 0);
         await assertFaceRuntimeUnavailable();
       }
+
+      // Microphone tracking supports a single speaker and clears a previously enabled multi-person setting.
+      await setMicrophone(false);
+      await assertMultiPresenterTracking(false);
+      await multiPresenterTrackingControl().click();
+      await assertMultiPresenterTracking(true);
+      await setMicrophone(true);
+      await assertMultiPresenterTracking(false, true);
+
+      // Audience offers only microphone tracking, so it must not expose any multi-person setting.
+      await page.locator('#aver-trk-tab-audience').click();
+      assert.equal(await panel.getByText('Multi-Presenter Tracking', { exact: true }).count(), 0);
+      assert.equal(await panel.getByRole('button', { name: 'Multiple People', exact: true }).count(), 0);
+      assert.equal(await panel.getByRole('button', { name: 'Single Person', exact: true }).count(), 0);
+      await panel.getByRole('button', { name: /About Audience Mode/ }).click();
+      const audienceHelp = page.getByRole('dialog', { name: 'About Audience Mode', exact: true });
+      const switchMicrophoneHelp = 'To switch speakers, select Click Track, then click another microphone holder in the live view. Configure the tracking area, framing, and tracking behavior in this tab.';
+      assert.equal(await audienceHelp.getByText(`Audience Mode tracks one audience member using Handheld Microphone Tracking. ${switchMicrophoneHelp}`, { exact: true }).isVisible(), true);
+      await audienceHelp.getByRole('button', { name: 'OK', exact: true }).click();
+
+      // Disabling microphone tracking restores editing without restoring the old multi-person choice.
+      await setMicrophone(false);
+      await assertMultiPresenterTracking(false);
+      await panel.getByRole('button', { name: 'Handheld Microphone Tracking information', exact: true }).click();
+      const presenterHelp = page.getByRole('dialog', { name: 'Handheld Microphone Tracking', exact: true });
+      assert.equal(await presenterHelp.getByText(`Presenter Mode tracks one on-stage speaker using Handheld Microphone Tracking. ${switchMicrophoneHelp}`, { exact: true }).isVisible(), true);
+      await presenterHelp.getByRole('button', { name: 'OK', exact: true }).click();
 
       // Opening Audience settings must not select its runtime mode or reset Gesture.
       await page.locator('#aver-trk-tab-audience').click();
@@ -239,7 +284,7 @@ const os = require('node:os');
       }
       await multiPresenterDetection.selectOption(originalDetection);
       assert.deepEqual(errors, []);
-      console.log(`${version}: gesture mode matrix, fixed Off and disabled selector under conflicts, face CRUD and detection under conflicts, PTZ availability and saved detection presets passed`);
+      console.log(`${version}: single-speaker microphone tracking, hidden Audience multi-person settings, approved help copy, gesture mode matrix, fixed Off and disabled selector under conflicts, face CRUD and detection under conflicts, PTZ availability and saved detection presets passed`);
       await page.close();
     }
   } finally {

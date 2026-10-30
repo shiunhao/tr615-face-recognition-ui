@@ -1,4 +1,3 @@
-import AudienceModeBar from "./AudienceModeBar";
 import { useRef, useState } from 'react';
 import EffectiveTrackingArea from './EffectiveTrackingArea';
 import ShieldZone from './ShieldZone';
@@ -13,7 +12,6 @@ export default function AudienceSettings({ settings, onChange, theme: T, visualT
   const input = { width: '100%', minWidth: 0, boxSizing: 'border-box', padding: '5px 8px', background: '#101216', border: `1px solid ${T.line2}`, borderRadius: 4, color: T.text, font: 'inherit' };
   const check = (key, label) => <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}><input type="checkbox" checked={settings[key]} onChange={e => update(key, e.target.checked)} style={{ accentColor: T.blue }} />{label}</label>;
   return <div id="aver-tracking-audience-panel" aria-label="Audience Tracking" style={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', gap: 8, color: T.text, fontSize: 13 }}>
-    <AudienceModeBar settings={settings} onChange={onChange} theme={T} visualTargets={visualTargets} />
     <div className="audience-columns" style={{ display: 'grid', gridTemplateColumns: '1fr 1.1fr 1fr', gap: 10, flex: 1, minHeight: 0 }}>
     <section className="audience-card" aria-label="Audience Tracking Area">
       <h3>Tracking Area</h3><div className="audience-card-body">

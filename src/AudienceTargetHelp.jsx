@@ -31,7 +31,7 @@ function AudienceScene({ type }) {
 export default function AudienceTargetHelp({ dialogRef, theme: T }) {
   const close = () => dialogRef.current?.close();
   const items = [
-    { type: 'microphone', title: 'Handheld Microphone Tracking', text: 'Audience Mode is designed specifically for speakers in the audience, unlike Presenter Mode, which tracks speakers on stage. It uses Handheld Microphone Tracking to detect and follow audience members holding a microphone. Use this tab to configure the tracking area, framing, and tracking behavior.' },
+    { type: 'microphone', title: 'Handheld Microphone Tracking', text: 'Audience Mode tracks one audience member using Handheld Microphone Tracking. To switch speakers, select Click Track, then click another microphone holder in the live view. Configure the tracking area, framing, and tracking behavior in this tab.' },
   ];
 
   return <dialog ref={dialogRef} aria-labelledby="audience-target-help-title" onClick={event => { if (event.target === event.currentTarget) close(); }} style={{ width: 'min(820px, calc(100vw - 48px))', maxHeight: 'calc(100vh - 48px)', overflowY: 'auto', boxSizing: 'border-box', padding: 24, border: `1px solid ${T.line2}`, borderRadius: 10, background: T.panel, color: T.text, fontSize: 13, lineHeight: 1.6 }}>
