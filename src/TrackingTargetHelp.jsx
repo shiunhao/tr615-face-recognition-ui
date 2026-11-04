@@ -30,7 +30,10 @@ export default function TrackingTargetHelp({ dialogRef, theme: T }) {
       <img src="presenter-handheld-microphone-tracking-v2.png" alt="Presenter holding a handheld microphone inside a red tracking frame" style={{ width: '100%', aspectRatio: '16 / 9', objectFit: 'cover', objectPosition: 'center', display: 'block', background: '#111b24', borderRadius: 7 }} />
       <div style={{ borderLeft: `1px solid ${T.line2}`, paddingLeft: 16, minHeight: 0, alignSelf: 'stretch', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
         <h3 style={{ margin: '0 0 6px', fontSize: 14 }}>Handheld Microphone Tracking</h3>
-        <p style={{ margin: 0 }}>Presenter Mode tracks one on-stage speaker using Handheld Microphone Tracking. To switch speakers, select Click Track, then click another microphone holder in the live view. Configure the tracking area, framing, and tracking behavior in this tab.</p>
+        <ol style={{ margin: 0, paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <li>Tracks one on-stage speaker holding a handheld microphone. Configure the tracking area, framing, and tracking behavior in this tab.</li>
+          <li>To switch speakers, select <strong>Click Track</strong>, then click another person holding a handheld microphone in the live view.</li>
+        </ol>
       </div>
     </div>
 

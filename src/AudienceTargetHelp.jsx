@@ -31,7 +31,7 @@ function AudienceScene({ type }) {
 export default function AudienceTargetHelp({ dialogRef, theme: T }) {
   const close = () => dialogRef.current?.close();
   const items = [
-    { type: 'microphone', title: 'Handheld Microphone Tracking', text: 'Audience Mode tracks one audience member using Handheld Microphone Tracking. To switch speakers, select Click Track, then click another microphone holder in the live view. Configure the tracking area, framing, and tracking behavior in this tab.' },
+    { type: 'microphone', title: 'Handheld Microphone Tracking', text: 'Tracks one audience member holding a handheld microphone. Configure the tracking area, framing, and tracking behavior in this tab.' },
   ];
 
   return <dialog ref={dialogRef} aria-labelledby="audience-target-help-title" onClick={event => { if (event.target === event.currentTarget) close(); }} style={{ width: 'min(820px, calc(100vw - 48px))', maxHeight: 'calc(100vh - 48px)', overflowY: 'auto', boxSizing: 'border-box', padding: 24, border: `1px solid ${T.line2}`, borderRadius: 10, background: T.panel, color: T.text, fontSize: 13, lineHeight: 1.6 }}>
@@ -44,7 +44,10 @@ export default function AudienceTargetHelp({ dialogRef, theme: T }) {
         <img src="audience-microphone-tracking-v3.png" alt="Audience member holding a handheld microphone inside a red tracking frame" style={{ width: '100%', aspectRatio: '16 / 9', objectFit: 'cover', objectPosition: 'center', display: 'block', borderRadius: 7, background: '#111b24' }} />
         <div style={{ borderLeft: `1px solid ${T.line2}`, paddingLeft: 16, minHeight: 0, alignSelf: 'stretch', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
           <h3 style={{ margin: '0 0 4px', fontSize: 14 }}>{item.title}</h3>
-          <p style={{ margin: 0 }}>{item.text}</p>
+          <ol style={{ margin: 0, paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <li>{item.text}</li>
+            <li>To switch speakers, select <strong>Click Track</strong>, then click another person holding a handheld microphone in the live view.</li>
+          </ol>
         </div>
       </div>)}
     </div>

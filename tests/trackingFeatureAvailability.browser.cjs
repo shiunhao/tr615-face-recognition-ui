@@ -173,8 +173,15 @@ const os = require('node:os');
       assert.equal(await panel.getByRole('button', { name: 'Single Person', exact: true }).count(), 0);
       await panel.getByRole('button', { name: /About Audience Mode/ }).click();
       const audienceHelp = page.getByRole('dialog', { name: 'About Audience Mode', exact: true });
-      const switchMicrophoneHelp = 'To switch speakers, select Click Track, then click another microphone holder in the live view. Configure the tracking area, framing, and tracking behavior in this tab.';
-      assert.equal(await audienceHelp.getByText(`Audience Mode tracks one audience member using Handheld Microphone Tracking. ${switchMicrophoneHelp}`, { exact: true }).isVisible(), true);
+      const switchMicrophoneHelp = 'To switch speakers, select Click Track, then click another person holding a handheld microphone in the live view.';
+      async function assertNumberedMicrophoneHelp(dialog, firstItem) {
+        const list = dialog.locator('ol');
+        assert.equal(await list.isVisible(), true);
+        const items = list.getByRole('listitem');
+        assert.equal(await items.count(), 2);
+        assert.deepEqual((await items.allInnerTexts()).map(text => text.replace(/\s+/g, ' ').trim()), [firstItem, switchMicrophoneHelp]);
+      }
+      await assertNumberedMicrophoneHelp(audienceHelp, 'Tracks one audience member holding a handheld microphone. Configure the tracking area, framing, and tracking behavior in this tab.');
       await audienceHelp.getByRole('button', { name: 'OK', exact: true }).click();
 
       // Disabling microphone tracking restores editing without restoring the old multi-person choice.
@@ -182,7 +189,7 @@ const os = require('node:os');
       await assertMultiPresenterTracking(false);
       await panel.getByRole('button', { name: 'Handheld Microphone Tracking information', exact: true }).click();
       const presenterHelp = page.getByRole('dialog', { name: 'Handheld Microphone Tracking', exact: true });
-      assert.equal(await presenterHelp.getByText(`Presenter Mode tracks one on-stage speaker using Handheld Microphone Tracking. ${switchMicrophoneHelp}`, { exact: true }).isVisible(), true);
+      await assertNumberedMicrophoneHelp(presenterHelp, 'Tracks one on-stage speaker holding a handheld microphone. Configure the tracking area, framing, and tracking behavior in this tab.');
       await presenterHelp.getByRole('button', { name: 'OK', exact: true }).click();
 
       // Opening Audience settings must not select its runtime mode or reset Gesture.
